@@ -94,28 +94,49 @@
   document.getElementById('btn-start').addEventListener('click', async function () {
     var btn = this;
     btn.disabled = true;
-    setStatus('Conectando…');
     try {
-      var res = await fetch(window.MM.api + '/api/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ room: code, role: 'interpreter' })
-      });
-      if (!res.ok) throw new Error('token');
-      var data = await res.json();
-      room = new LivekitClient.Room();
-      room.on('participantConnected', updateListeners);
-      room.on('participantDisconnected', updateListeners);
-      await room.connect(data.url, data.token);
+      setStatus('Conectando\u2026');
+      if (!room) {
+        var res = await fetch(window.MM.api + '/api/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room: code, role: 'interpreter' })
+        });
+        if (!res.ok) throw new Error('el servidor no dio el acceso');
+        var data = await res.json();
+        room = new LivekitClient.Room();
+        room.on('participantConnected', updateListeners);
+        room.on('participantDisconnected', updateListeners);
+        await room.connect(data.url, data.token);
+      }
+      // Micrófono: primero el elegido; si el navegador lo rechaza
+      // (pasa en iPad con el identificador del dispositivo), se reintenta
+      // con el micrófono predeterminado y luego sin opciones.
       var deviceId = document.getElementById('mic').value;
-      await room.localParticipant.enableMicrophone({
-        deviceId: deviceId ? { exact: deviceId } : undefined,
-        echoCancellation: false, noiseSuppression: false, autoGainControl: false
-      });
+      var base = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+      try {
+        var conDev = Object.assign({}, base);
+        if (deviceId) conDev.deviceId = { exact: deviceId };
+        await room.localParticipant.enableMicrophone(conDev);
+      } catch (micErr) {
+        try {
+          await room.localParticipant.enableMicrophone(base);
+        } catch (micErr2) {
+          await room.localParticipant.enableMicrophone();
+        }
+      }
       setStatus('');
-      status.innerHTML = '<span class="pulse on"></span><strong>En vivo: estás interpretando</strong>';
+      status.innerHTML = '<span class=\"pulse on\"></span><strong>En vivo: est\u00e1s interpretando</strong>';
       btn.hidden = true;
       document.getElementById('btn-end').hidden = false;
+      updateListeners();
+    } catch (e) {
+      setStatus('No se pudo empezar (' + (e && e.message ? e.message : e) + '). Revisa el micr\u00f3fono y la conexi\u00f3n.', true);
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById('btn-end').hidden = false;
       updateListeners();
     } catch (e) {
       setStatus('No se pudo empezar. Revisa el micrófono y la conexión.', true);
