@@ -67,10 +67,16 @@
       document.getElementById('link-listen').href = window.MM.listenBase + '?room=' + code;
       document.getElementById('step-create').hidden = true;
       document.getElementById('step-room').hidden = false;
-      // Lista de micrófonos (pide permiso una vez)
-      await navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) {
-        s.getTracks().forEach(function (t) { t.stop(); });
-      });
+      // Lista de micrófonos (pide permiso una vez). Si este equipo no
+      // tiene micrófono, la sala ya quedó creada: se avisa aparte.
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) {
+          s.getTracks().forEach(function (t) { t.stop(); });
+        });
+      } catch (micErr) {
+        setStatus('La sala quedó creada, pero este navegador no encontró un micrófono. Prueba en un equipo con micrófono.', true);
+        return;
+      }
       var devices = await navigator.mediaDevices.enumerateDevices();
       var sel = document.getElementById('mic');
       devices.filter(function (d) { return d.kind === 'audioinput'; }).forEach(function (d, i) {
