@@ -48,3 +48,35 @@ Construido el 2026-11-24. Plan completo en ../PLAN.md.
 - URL del proyecto: wss://movilizarme-interpreter-ok53esg9.livekit.cloud
 - Las claves API se generan al desplegar y van directo a las variables de
   entorno de Render; nunca pasan por el chat ni por el código.
+
+## Despliegue (2026-11-24, en vivo)
+- Servidor de tokens en Render (plan gratuito):
+  https://movilizarme-interpreter.onrender.com
+  Verificado en producción: crea salas y firma tokens con los permisos
+  correctos contra el proyecto real de LiveKit. Ojo: el plan gratuito de
+  Render duerme tras inactividad; la primera conexión puede tardar hasta
+  un minuto en despertar. En un servicio se mantiene despierto desde que
+  la consola crea la sala.
+- Páginas publicadas en el sitio: movilizar.me/escuchar (oyente),
+  movilizar.me/escuchar/consola.html (intérprete) y
+  movilizar.me/escuchar/proyector.html (proyección), enlazadas desde la
+  página Herramientas en ambos idiomas.
+- Repositorio del código: github.com/ezeorihuela/movilizarme-interpreter
+
+## v2: Panel de super administrador (2026-11-24)
+- El servidor exige la CLAVE de una iglesia para crear salas y para el
+  token del intérprete. El oyente sigue libre: código y un botón.
+- Datos en Postgres (Neon) vía DATABASE_URL: iglesias, claves, estatus
+  (trial con fecha, activa, suspendida), salas y minutos. Sin
+  DATABASE_URL corre en memoria (solo pruebas locales).
+- Contador de minutos por iglesia con los webhooks de LiveKit
+  (participant_joined/left, room_finished) en POST /api/webhook. La URL
+  del webhook se registra en el proyecto de LiveKit.
+- Panel en /admin del propio servidor: primer acceso crea la contraseña
+  del administrador. Desde ahí: alta de iglesias, generación de claves,
+  estatus y trials, salas activas, uso mensual por iglesia y envío del
+  correo de bienvenida (SMTP de Gmail con contraseña de aplicación, que
+  se guarda desde el propio panel en Ajustes).
+- La pantalla de proyector incluye "Descargar imagen": compone la
+  tarjeta de la sala como PNG 1920x1080 (logo, QR, código) lista para
+  usar como diapositiva.

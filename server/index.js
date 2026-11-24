@@ -1,73 +1,372 @@
-// MovilizarMe Interpreter - servidor de tokens (LiveKit Cloud)
-// Crea códigos de sala y firma tokens cortos por rol.
-// Variables de entorno: LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, PORT
+// MovilizarMe Interpreter - servidor v2
+// Salas con clave por iglesia, panel de super administrador, contador de
+// minutos por iglesia (webhooks de LiveKit) y correo de bienvenida.
+// Env: LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, DATABASE_URL, PORT
+// Sin DATABASE_URL usa memoria (solo pruebas locales).
 const express = require('express');
 const cors = require('cors');
-const { AccessToken } = require('livekit-server-sdk');
-
-const app = express();
-app.use(cors());
-app.use(express.json());
+const crypto = require('crypto');
+const path = require('path');
+const { AccessToken, WebhookReceiver } = require('livekit-server-sdk');
 
 const LIVEKIT_URL = process.env.LIVEKIT_URL || '';
 const API_KEY = process.env.LIVEKIT_API_KEY || '';
 const API_SECRET = process.env.LIVEKIT_API_SECRET || '';
 const PORT = process.env.PORT || 8080;
+const DATABASE_URL = process.env.DATABASE_URL || '';
 
-// Código de sala: 6 caracteres sin ambiguos (sin 0/O, 1/I/L)
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-function roomCode() {
-  let code = '';
-  for (let i = 0; i < 6; i++) code += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
-  return code;
+function makeCode(n) {
+  let s = '';
+  for (let i = 0; i < n; i++) s += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+  return s;
+}
+const normKey = (k) => String(k || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+const fmtKey = (k) => (k && k.length === 8 ? k.slice(0, 4) + '-' + k.slice(4) : k);
+
+// ---------------- Almacén de datos ----------------
+let pool = null;
+if (DATABASE_URL) {
+  const { Pool } = require('pg');
+  pool = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } });
+}
+const mem = { churches: [], rooms: new Map(), settings: new Map(), nextId: 1 };
+
+async function dbInit() {
+  if (!pool) return;
+  await pool.query(`CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS churches (
+    id SERIAL PRIMARY KEY, name TEXT NOT NULL, contact_name TEXT DEFAULT '',
+    email TEXT DEFAULT '', key TEXT UNIQUE NOT NULL, status TEXT NOT NULL DEFAULT 'trial',
+    trial_ends DATE, notes TEXT DEFAULT '', created_at TIMESTAMPTZ DEFAULT now())`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS rooms (
+    code TEXT PRIMARY KEY, church_id INT, church_name TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT now(), finished_at TIMESTAMPTZ,
+    participant_minutes NUMERIC DEFAULT 0, listener_minutes NUMERIC DEFAULT 0, peak INT DEFAULT 0)`);
+}
+const store = {
+  async getSetting(k) {
+    if (pool) { const r = await pool.query('SELECT v FROM settings WHERE k=$1', [k]); return r.rows[0] ? r.rows[0].v : null; }
+    return mem.settings.has(k) ? mem.settings.get(k) : null;
+  },
+  async setSetting(k, v) {
+    if (pool) await pool.query('INSERT INTO settings(k,v) VALUES($1,$2) ON CONFLICT(k) DO UPDATE SET v=$2', [k, v]);
+    else mem.settings.set(k, v);
+  },
+  async listChurches() {
+    if (pool) { const r = await pool.query('SELECT * FROM churches ORDER BY created_at'); return r.rows; }
+    return mem.churches.slice();
+  },
+  async getChurchByKey(key) {
+    if (pool) { const r = await pool.query('SELECT * FROM churches WHERE key=$1', [key]); return r.rows[0] || null; }
+    return mem.churches.find((c) => c.key === key) || null;
+  },
+  async getChurch(id) {
+    if (pool) { const r = await pool.query('SELECT * FROM churches WHERE id=$1', [id]); return r.rows[0] || null; }
+    return mem.churches.find((c) => c.id === Number(id)) || null;
+  },
+  async createChurch(data) {
+    if (pool) {
+      const r = await pool.query(
+        `INSERT INTO churches(name, contact_name, email, key, status, trial_ends, notes)
+         VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+        [data.name, data.contact_name, data.email, data.key, data.status, data.trial_ends, data.notes]);
+      return r.rows[0];
+    }
+    const c = Object.assign({ id: mem.nextId++, created_at: new Date().toISOString() }, data);
+    mem.churches.push(c); return c;
+  },
+  async updateChurch(id, data) {
+    const cur = await this.getChurch(id); if (!cur) return null;
+    const next = Object.assign({}, cur, data);
+    if (pool) {
+      await pool.query(
+        `UPDATE churches SET name=$1, contact_name=$2, email=$3, key=$4, status=$5, trial_ends=$6, notes=$7 WHERE id=$8`,
+        [next.name, next.contact_name, next.email, next.key, next.status, next.trial_ends, next.notes, id]);
+    } else {
+      const i = mem.churches.findIndex((c) => c.id === Number(id)); mem.churches[i] = next;
+    }
+    return next;
+  },
+  async createRoom(code, church) {
+    if (pool) await pool.query('INSERT INTO rooms(code, church_id, church_name) VALUES($1,$2,$3)', [code, church ? church.id : null, church ? church.name : '']);
+    else mem.rooms.set(code, { code, church_id: church ? church.id : null, church_name: church ? church.name : '', created_at: Date.now(), finished_at: null, participant_minutes: 0, listener_minutes: 0, peak: 0 });
+  },
+  async getRoom(code) {
+    if (pool) { const r = await pool.query('SELECT * FROM rooms WHERE code=$1', [code]); return r.rows[0] || null; }
+    return mem.rooms.get(code) || null;
+  },
+  async addMinutes(code, total, listener, peak) {
+    if (pool) await pool.query('UPDATE rooms SET participant_minutes = participant_minutes + $1, listener_minutes = listener_minutes + $2, peak = GREATEST(peak, $3) WHERE code = $4', [total, listener, peak, code]);
+    else { const r = mem.rooms.get(code); if (r) { r.participant_minutes += total; r.listener_minutes += listener; r.peak = Math.max(r.peak, peak); } }
+  },
+  async finishRoom(code) {
+    if (pool) await pool.query('UPDATE rooms SET finished_at = now() WHERE code=$1', [code]);
+    else { const r = mem.rooms.get(code); if (r) r.finished_at = Date.now(); }
+  },
+  async usage() {
+    // Por iglesia: salas y minutos del mes actual y de siempre
+    if (pool) {
+      const r = await pool.query(`
+        SELECT c.id, c.name,
+          COUNT(r.code) FILTER (WHERE date_trunc('month', r.created_at) = date_trunc('month', now())) AS rooms_month,
+          COALESCE(SUM(r.participant_minutes) FILTER (WHERE date_trunc('month', r.created_at) = date_trunc('month', now())), 0) AS minutes_month,
+          COALESCE(SUM(r.listener_minutes) FILTER (WHERE date_trunc('month', r.created_at) = date_trunc('month', now())), 0) AS listener_month,
+          COUNT(r.code) AS rooms_total,
+          COALESCE(SUM(r.participant_minutes), 0) AS minutes_total
+        FROM churches c LEFT JOIN rooms r ON r.church_id = c.id GROUP BY c.id, c.name`);
+      return r.rows;
+    }
+    const now = new Date(); const out = [];
+    for (const c of mem.churches) {
+      const rs = [...mem.rooms.values()].filter((r) => r.church_id === c.id);
+      const rm = rs.filter((r) => new Date(r.created_at).getMonth() === now.getMonth());
+      out.push({ id: c.id, name: c.name, rooms_month: rm.length, minutes_month: rm.reduce((a, r) => a + r.participant_minutes, 0), listener_month: rm.reduce((a, r) => a + r.listener_minutes, 0), rooms_total: rs.length, minutes_total: rs.reduce((a, r) => a + r.participant_minutes, 0) });
+    }
+    return out;
+  },
+  async activeRooms() {
+    if (pool) { const r = await pool.query('SELECT code, church_name, created_at FROM rooms WHERE finished_at IS NULL AND created_at > now() - interval \'12 hours\' ORDER BY created_at DESC'); return r.rows; }
+    return [...mem.rooms.values()].filter((r) => !r.finished_at).map((r) => ({ code: r.code, church_name: r.church_name, created_at: new Date(r.created_at).toISOString() }));
+  },
+};
+
+function churchValid(c) {
+  if (!c) return { ok: false, error: 'Clave de iglesia no reconocida.' };
+  if (c.status === 'suspended') return { ok: false, error: 'La suscripción de esta iglesia está suspendida. Contacta a MovilizarMe.' };
+  if (c.status === 'trial' && c.trial_ends) {
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    if (new Date(c.trial_ends) < hoy) return { ok: false, error: 'El periodo de prueba de esta iglesia terminó. Contacta a MovilizarMe.' };
+  }
+  return { ok: true };
 }
 
-// Salas creadas en esta corrida (memoria; se reinicia con el servidor)
-const rooms = new Map(); // code -> createdAt
-const ROOM_TTL_MS = 12 * 60 * 60 * 1000;
-function roomAlive(code) {
-  const t = rooms.get(code);
-  if (!t) return false;
-  if (Date.now() - t > ROOM_TTL_MS) { rooms.delete(code); return false; }
-  return true;
+// ---------------- Contraseña del administrador ----------------
+function hashPass(pass, salt) {
+  return crypto.scryptSync(pass, salt, 64).toString('hex');
+}
+async function setAdminPass(pass) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  await store.setSetting('admin_pass', salt + ':' + hashPass(pass, salt));
+}
+async function checkAdminPass(pass) {
+  const saved = await store.getSetting('admin_pass');
+  if (!saved) return false;
+  const [salt, h] = saved.split(':');
+  const calc = hashPass(pass, salt);
+  return crypto.timingSafeEqual(Buffer.from(h), Buffer.from(calc));
+}
+async function sessionToken() {
+  const saved = await store.getSetting('admin_pass');
+  return crypto.createHmac('sha256', saved || 'sin-clave').update('mm-admin-session').digest('hex');
+}
+function parseCookies(req) {
+  const out = {};
+  (req.headers.cookie || '').split(';').forEach((p) => { const i = p.indexOf('='); if (i > 0) out[p.slice(0, i).trim()] = p.slice(i + 1).trim(); });
+  return out;
+}
+async function isAdmin(req) {
+  const t = parseCookies(req).mm_admin;
+  return !!t && t === (await sessionToken());
+}
+async function requireAdmin(req, res, next) {
+  if (await isAdmin(req)) return next();
+  res.status(401).json({ error: 'Sesión de administrador requerida.' });
 }
 
-app.get('/', (req, res) => {
-  res.json({ ok: true, service: 'movilizarme-interpreter', livekit: LIVEKIT_URL ? 'configurado' : 'sin-configurar' });
+// ---------------- Correo de bienvenida ----------------
+async function sendWelcome(church) {
+  const user = await store.getSetting('smtp_user');
+  const pass = await store.getSetting('smtp_pass');
+  if (!user || !pass) throw new Error('Correo no configurado en el panel (ajustes SMTP).');
+  if (!church.email) throw new Error('Esta iglesia no tiene correo registrado.');
+  const nodemailer = require('nodemailer');
+  const t = nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user, pass } });
+  const clave = fmtKey(church.key);
+  const prueba = church.status === 'trial' && church.trial_ends
+    ? `\nSu periodo de prueba vence el ${new Date(church.trial_ends).toLocaleDateString('es')}.` : '';
+  const texto =
+`Hola, ${church.contact_name || church.name}:
+
+¡Bienvenidos al servicio de interpretación en vivo de MovilizarMe!
+
+Su iglesia: ${church.name}
+Su clave de acceso: ${clave}${prueba}
+
+Con esa clave, su intérprete entra a la consola y crea la sala de cada servicio:
+Consola del intérprete: https://movilizar.me/escuchar/consola.html
+
+Los oyentes no necesitan clave ni cuenta. Solo escanean el código QR de la
+pantalla de proyector o entran a https://movilizar.me/escuchar con el código
+de la sala.
+
+Pasos rápidos:
+1. Abran la consola y escriban su clave (se recuerda en ese equipo).
+2. Creen la sala y abran la pantalla de proyector desde la consola.
+3. El intérprete toca "Empezar a interpretar" y habla por su micrófono.
+4. La congregación escanea el QR y toca "Escuchar".
+
+Guarden su clave en un lugar seguro y no la compartan fuera de su equipo.
+
+¿Dudas? Escríbannos a ezequiel@movilizar.me
+
+MovilizarMe · Ayudando a las personas a encontrar su camino de regreso a Dios`;
+  await t.sendMail({
+    from: `MovilizarMe <${user}>`, to: church.email,
+    subject: 'Su clave de interpretación en vivo · MovilizarMe',
+    text: texto,
+  });
+}
+
+// ---------------- App ----------------
+const app = express();
+app.use(cors());
+
+// Webhook de LiveKit: cuerpo crudo, antes del parser JSON
+const receiver = (API_KEY && API_SECRET) ? new WebhookReceiver(API_KEY, API_SECRET) : null;
+const joins = new Map(); // sala:identidad -> {joinedAt, room}
+app.post('/api/webhook', express.raw({ type: '*/*' }), async (req, res) => {
+  if (!receiver) return res.status(503).end();
+  try {
+    const evt = await receiver.receive(req.body.toString(), req.get('Authorization'));
+    const roomName = evt.room ? evt.room.name : '';
+    const p = evt.participant || {};
+    if (evt.event === 'participant_joined' && roomName) {
+      joins.set(roomName + ':' + p.identity, { joinedAt: Number(p.joinedAt) || Math.floor(Date.now() / 1000), room: roomName });
+      const enSala = [...joins.keys()].filter((k) => k.startsWith(roomName + ':')).length;
+      await store.addMinutes(roomName, 0, 0, enSala);
+    } else if (evt.event === 'participant_left' && roomName) {
+      const j = joins.get(roomName + ':' + p.identity);
+      joins.delete(roomName + ':' + p.identity);
+      const joinedAt = j ? j.joinedAt : (Number(p.joinedAt) || Math.floor(Date.now() / 1000));
+      const mins = Math.max(0, (Date.now() / 1000 - joinedAt) / 60);
+      const esOyente = String(p.identity || '').startsWith('oyente-');
+      await store.addMinutes(roomName, mins, esOyente ? mins : 0, 0);
+    } else if (evt.event === 'room_finished' && roomName) {
+      for (const [k, j] of [...joins.entries()]) {
+        if (j.room === roomName) {
+          const mins = Math.max(0, (Date.now() / 1000 - j.joinedAt) / 60);
+          const esOyente = k.split(':')[1].startsWith('oyente-');
+          await store.addMinutes(roomName, mins, esOyente ? mins : 0, 0);
+          joins.delete(k);
+        }
+      }
+      await store.finishRoom(roomName);
+    }
+    res.status(200).end();
+  } catch (e) {
+    res.status(401).end();
+  }
 });
 
-// Crear una sala nueva y devolver su código
-app.post('/api/room', (req, res) => {
-  let code = roomCode();
-  while (rooms.has(code)) code = roomCode();
-  rooms.set(code, Date.now());
-  res.json({ room: code });
+app.use(express.json());
+
+app.get('/', async (req, res) => {
+  res.json({ ok: true, service: 'movilizarme-interpreter', version: 2, livekit: LIVEKIT_URL ? 'configurado' : 'sin-configurar', datos: pool ? 'base-de-datos' : 'memoria' });
 });
 
-// Firmar un token: role = 'interpreter' (publica) | 'listener' (solo escucha)
+// Crear sala: exige la clave de una iglesia con suscripción válida
+app.post('/api/room', async (req, res) => {
+  const key = normKey((req.body || {}).key);
+  const church = await store.getChurchByKey(key);
+  const v = churchValid(church);
+  if (!v.ok) return res.status(403).json({ error: v.error });
+  let code = makeCode(6);
+  while (await store.getRoom(code)) code = makeCode(6);
+  await store.createRoom(code, church);
+  res.json({ room: code, church: church.name });
+});
+
+// Token: el oyente solo necesita la sala; el intérprete, la clave de su iglesia
 app.post('/api/token', async (req, res) => {
-  const { room, role, name } = req.body || {};
-  if (!room || !roomAlive(String(room).toUpperCase())) {
-    return res.status(404).json({ error: 'Sala no encontrada o ya cerrada.' });
-  }
-  if (!API_KEY || !API_SECRET) {
-    return res.status(500).json({ error: 'Servidor sin claves de LiveKit.' });
-  }
+  const { room, role, name, key } = req.body || {};
+  const code = String(room || '').toUpperCase();
+  const r = await store.getRoom(code);
+  if (!r || r.finished_at) return res.status(404).json({ error: 'Sala no encontrada o ya cerrada.' });
+  if (!API_KEY || !API_SECRET) return res.status(500).json({ error: 'Servidor sin claves de LiveKit.' });
   const isInterpreter = role === 'interpreter';
+  if (isInterpreter) {
+    const church = await store.getChurchByKey(normKey(key));
+    if (!church || church.id !== r.church_id) return res.status(403).json({ error: 'Se requiere la clave de la iglesia dueña de esta sala.' });
+    const v = churchValid(church);
+    if (!v.ok) return res.status(403).json({ error: v.error });
+  }
   const identity = (isInterpreter ? 'interprete-' : 'oyente-') + Math.random().toString(36).slice(2, 9);
-  const at = new AccessToken(API_KEY, API_SECRET, {
-    identity,
-    name: name || (isInterpreter ? 'Intérprete' : 'Oyente'),
-    ttl: '6h',
-  });
-  at.addGrant({
-    roomJoin: true,
-    room: String(room).toUpperCase(),
-    canPublish: isInterpreter,
-    canSubscribe: true,
-    canPublishData: isInterpreter,
-  });
-  res.json({ token: await at.toJwt(), url: LIVEKIT_URL, room: String(room).toUpperCase() });
+  const at = new AccessToken(API_KEY, API_SECRET, { identity, name: name || (isInterpreter ? 'Intérprete' : 'Oyente'), ttl: '6h' });
+  at.addGrant({ roomJoin: true, room: code, canPublish: isInterpreter, canSubscribe: true, canPublishData: isInterpreter });
+  res.json({ token: await at.toJwt(), url: LIVEKIT_URL, room: code });
 });
 
-app.listen(PORT, () => console.log('Interpreter token server en puerto ' + PORT));
+// ---------------- Panel de administración ----------------
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, '..', 'web', 'admin.html')));
+
+app.get('/api/admin/state', async (req, res) => {
+  const saved = await store.getSetting('admin_pass');
+  res.json({ needsSetup: !saved, authed: await isAdmin(req), mailConfigured: !!(await store.getSetting('smtp_user')) });
+});
+app.post('/api/admin/setup', async (req, res) => {
+  if (await store.getSetting('admin_pass')) return res.status(409).json({ error: 'La contraseña ya existe.' });
+  const pass = String((req.body || {}).password || '');
+  if (pass.length < 10) return res.status(400).json({ error: 'Usa al menos 10 caracteres.' });
+  await setAdminPass(pass);
+  res.cookie('mm_admin', await sessionToken(), { httpOnly: true, secure: true, sameSite: 'lax', maxAge: 30 * 24 * 3600 * 1000 });
+  res.json({ ok: true });
+});
+app.post('/api/admin/login', async (req, res) => {
+  if (!(await checkAdminPass(String((req.body || {}).password || '')))) return res.status(401).json({ error: 'Contraseña incorrecta.' });
+  res.cookie('mm_admin', await sessionToken(), { httpOnly: true, secure: true, sameSite: 'lax', maxAge: 30 * 24 * 3600 * 1000 });
+  res.json({ ok: true });
+});
+app.post('/api/admin/logout', (req, res) => { res.clearCookie('mm_admin'); res.json({ ok: true }); });
+
+app.get('/api/admin/churches', requireAdmin, async (req, res) => {
+  const churches = await store.listChurches();
+  const usage = await store.usage();
+  const u = Object.fromEntries(usage.map((x) => [x.id, x]));
+  res.json({ churches: churches.map((c) => Object.assign({}, c, { key: fmtKey(c.key), usage: u[c.id] || null })), activeRooms: await store.activeRooms() });
+});
+app.post('/api/admin/churches', requireAdmin, async (req, res) => {
+  const b = req.body || {};
+  if (!b.name) return res.status(400).json({ error: 'Falta el nombre de la iglesia.' });
+  let key = makeCode(8);
+  while (await store.getChurchByKey(key)) key = makeCode(8);
+  const church = await store.createChurch({
+    name: String(b.name), contact_name: String(b.contactName || ''), email: String(b.email || ''),
+    key, status: ['trial', 'active', 'suspended'].includes(b.status) ? b.status : 'trial',
+    trial_ends: b.trialEnds || null, notes: String(b.notes || ''),
+  });
+  res.json({ church: Object.assign({}, church, { key: fmtKey(church.key) }) });
+});
+app.patch('/api/admin/churches/:id', requireAdmin, async (req, res) => {
+  const b = req.body || {};
+  const data = {};
+  if (b.name !== undefined) data.name = String(b.name);
+  if (b.contactName !== undefined) data.contact_name = String(b.contactName);
+  if (b.email !== undefined) data.email = String(b.email);
+  if (b.status !== undefined) data.status = b.status;
+  if (b.trialEnds !== undefined) data.trial_ends = b.trialEnds || null;
+  if (b.notes !== undefined) data.notes = String(b.notes);
+  if (b.regenerateKey) { let k = makeCode(8); while (await store.getChurchByKey(k)) k = makeCode(8); data.key = k; }
+  const church = await store.updateChurch(req.params.id, data);
+  if (!church) return res.status(404).json({ error: 'Iglesia no encontrada.' });
+  res.json({ church: Object.assign({}, church, { key: fmtKey(church.key) }) });
+});
+app.post('/api/admin/churches/:id/welcome', requireAdmin, async (req, res) => {
+  const church = await store.getChurch(req.params.id);
+  if (!church) return res.status(404).json({ error: 'Iglesia no encontrada.' });
+  try { await sendWelcome(church); res.json({ ok: true }); }
+  catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.get('/api/admin/settings', requireAdmin, async (req, res) => {
+  res.json({ smtpUser: (await store.getSetting('smtp_user')) || '', smtpConfigured: !!(await store.getSetting('smtp_pass')) });
+});
+app.post('/api/admin/settings', requireAdmin, async (req, res) => {
+  const b = req.body || {};
+  if (b.smtpUser !== undefined) await store.setSetting('smtp_user', String(b.smtpUser));
+  if (b.smtpPass) await store.setSetting('smtp_pass', String(b.smtpPass));
+  res.json({ ok: true });
+});
+
+dbInit()
+  .then(() => app.listen(PORT, () => console.log('Interpreter server v2 en puerto ' + PORT + (pool ? ' (con base de datos)' : ' (memoria, solo pruebas)'))))
+  .catch((e) => { console.error('Error iniciando la base de datos:', e.message); app.listen(PORT, () => console.log('Interpreter server v2 en puerto ' + PORT + ' (sin base de datos)')); });

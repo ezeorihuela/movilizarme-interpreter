@@ -1,1 +1,17 @@
-{"dependencies":{"cors":"^2.8.5","express":"^4.19.2","livekit-server-sdk":"^2.9.1"},"description":"Servidor de tokens LiveKit para el interpreter de MovilizarMe","main":"index.js","name":"movilizarme-interpreter-server","private":true,"scripts":{"start":"node index.js"},"version":"0.1.0"}
+{
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "livekit-server-sdk": "^2.9.1",
+    "pg": "^8.13.1",
+    "nodemailer": "^6.9.16"
+  },
+  "description": "Servidor de tokens LiveKit para el interpreter de MovilizarMe",
+  "main": "index.js",
+  "name": "movilizarme-interpreter-server",
+  "private": true,
+  "scripts": {
+    "start": "node index.js"
+  },
+  "version": "0.1.0"
+}

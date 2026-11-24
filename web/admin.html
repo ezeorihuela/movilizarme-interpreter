@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel del intérprete · MovilizarMe</title>
+<link rel="stylesheet" href="https://movilizar.me/escuchar/app.css">
+<style>
+  .wrap{max-width:1080px;margin:0 auto;padding:1rem}
+  .card{background:#fff;border:1px solid #e6e2ef;border-radius:.625rem;padding:1.1rem 1.2rem;margin:1rem 0}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.8rem}
+  .stat{background:#f4f1fa;border-radius:.625rem;padding:.9rem 1rem}
+  .stat b{display:block;font-size:1.7rem;color:#2b2140}
+  .stat span{color:#6d6486;font-size:.85rem}
+  table{width:100%;border-collapse:collapse;font-size:.92rem}
+  th,td{text-align:left;padding:.5rem .45rem;border-bottom:1px solid #eee;vertical-align:top}
+  .badge{display:inline-block;padding:.12rem .55rem;border-radius:1rem;font-size:.78rem;font-weight:700}
+  .b-trial{background:#fdf3d7;color:#7a5b00}.b-active{background:#e2f4e5;color:#1c5c2a}.b-suspended{background:#fbe3e3;color:#8c2323}
+  .key{font-family:ui-monospace,monospace;font-weight:700;letter-spacing:.06em}
+  .mini{font-size:.8rem;color:#6d6486}
+  input,select,textarea{width:100%;padding:.5rem .6rem;border:1px solid #cfc8e3;border-radius:.4rem;font:inherit;margin:.2rem 0 .7rem}
+  label{font-weight:600;font-size:.9rem}
+  .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 1rem}
+  .btnrow{display:flex;gap:.5rem;flex-wrap:wrap}
+  button.small{padding:.35rem .8rem;font-size:.85rem}
+  .msg{margin:.6rem 0;font-weight:600}
+  .msg.err{color:#b3261e}
+  dialog{border:1px solid #e6e2ef;border-radius:.625rem;max-width:420px;width:92%}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="kicker">MovilizarMe · Interpretación en vivo</p>
+  <h1>Panel de administración</h1>
+
+  <div id="auth" class="card" hidden>
+    <h2 id="auth-title">Entrar</h2>
+    <p id="auth-help" class="mini"></p>
+    <label>Contraseña del panel
+      <input type="password" id="pass" autocomplete="current-password">
+    </label>
+    <label id="pass2-label" hidden>Repite la contraseña
+      <input type="password" id="pass2" autocomplete="new-password">
+    </label>
+    <p class="msg" id="auth-msg"></p>
+    <button class="btn" id="auth-btn">Entrar</button>
+  </div>
+
+  <div id="dash" hidden>
+    <div class="stats">
+      <div class="stat"><b id="st-churches">0</b><span>Iglesias registradas</span></div>
+      <div class="stat"><b id="st-rooms">0</b><span>Salas activas ahora</span></div>
+      <div class="stat"><b id="st-listen">0</b><span>Minutos de oyentes (mes)</span></div>
+      <div class="stat"><b id="st-total">0</b><span>Minutos totales (mes) · plan gratis: 5,000</span></div>
+    </div>
+
+    <div class="card">
+      <h2>Iglesias y ministerios</h2>
+      <p class="msg" id="msg"></p>
+      <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>Iglesia</th><th>Clave</th><th>Estatus</th><th>Uso este mes</th><th>Acciones</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      </div>
+      <p class="mini">El contador suma los minutos de cada participante conectado (así cobra LiveKit). "Oyentes" es el desglose de quienes solo escuchan.</p>
+    </div>
+
+    <div class="card">
+      <h2>Salas activas</h2>
+      <ul id="rooms"></ul>
+    </div>
+
+    <div class="card">
+      <h2>Agregar iglesia</h2>
+      <div class="row">
+        <label>Nombre de la iglesia *<input id="f-name" type="text"></label>
+        <label>Persona de contacto<input id="f-contact" type="text"></label>
+        <label>Correo<input id="f-email" type="email"></label>
+        <label>Estatus
+          <select id="f-status">
+            <option value="trial">Prueba (trial)</option>
+            <option value="active">Activa</option>
+            <option value="suspended">Suspendida</option>
+          </select>
+        </label>
+        <label>Fin de la prueba<input id="f-trial" type="date"></label>
+        <label>Notas<input id="f-notes" type="text"></label>
+      </div>
+      <button class="btn" id="create">Crear y generar clave</button>
+      <p class="msg" id="create-msg"></p>
+    </div>
+
+    <div class="card">
+      <h2>Correo de bienvenida (SMTP)</h2>
+      <p class="mini">Para que el panel envíe las claves por correo, guarda tu correo de envío y una contraseña de aplicación de Google (se crea en myaccount.google.com/apppasswords). Queda guardada solo en tu base de datos.</p>
+      <div class="row">
+        <label>Correo de envío<input id="s-user" type="email" placeholder="ezequiel@movilizar.me"></label>
+        <label>Contraseña de aplicación<input id="s-pass" type="password" placeholder="••••••••••••••••"></label>
+      </div>
+      <p class="mini" id="smtp-state"></p>
+      <button class="btn" id="save-smtp">Guardar correo</button>
+    </div>
+
+    <p><button class="btn secondary" id="logout">Cerrar sesión</button></p>
+  </div>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var churches = [];
+  function api(path, opts) {
+    return fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts || {}))
+      .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.error || 'Error'); return d; }); });
+  }
+  function msg(t, err) { var m = $('msg'); m.textContent = t || ''; m.className = 'msg' + (err ? ' err' : ''); }
+  function fmtDate(d) { if (!d) return ''; return String(d).slice(0, 10); }
+  function badge(st) { return '<span class="badge b-' + st + '">' + ({ trial: 'Prueba', active: 'Activa', suspended: 'Suspendida' })[st] + '</span>'; }
+
+  function render() {
+    $('st-churches').textContent = churches.length;
+    var lm = 0, tm = 0;
+    churches.forEach(function (c) { if (c.usage) { lm += Number(c.usage.listener_month) || 0; tm += Number(c.usage.minutes_month) || 0; } });
+    $('st-listen').textContent = Math.round(lm);
+    $('st-total').textContent = Math.round(tm);
+    $('tbody').innerHTML = churches.map(function (c) {
+      var u = c.usage || {};
+      return '<tr>' +
+        '<td><strong>' + c.name + '</strong><br><span class="mini">' + (c.contact_name || '') + (c.email ? ' · ' + c.email : '') + '</span></td>' +
+        '<td><span class="key">' + c.key + '</span><br><button class="btn secondary small" data-act="copy" data-id="' + c.id + '">Copiar</button></td>' +
+        '<td>' + badge(c.status) +
+          '<select data-act="status" data-id="' + c.id + '">' +
+            ['trial', 'active', 'suspended'].map(function (s) { return '<option value="' + s + '"' + (c.status === s ? ' selected' : '') + '>' + ({ trial: 'Prueba', active: 'Activa', suspended: 'Suspendida' })[s] + '</option>'; }).join('') +
+          '</select>' +
+          (c.status === 'trial' ? '<span class="mini">Fin de prueba</span><input type="date" data-act="trial" data-id="' + c.id + '" value="' + fmtDate(c.trial_ends) + '">' : '') +
+        '</td>' +
+        '<td>' + (u.rooms_month || 0) + ' salas<br>' + Math.round(u.listener_month || 0) + ' min oyentes<br><span class="mini">' + Math.round(u.minutes_total || 0) + ' min en total</span></td>' +
+        '<td><div class="btnrow">' +
+          '<button class="btn small" data-act="welcome" data-id="' + c.id + '">Enviar bienvenida</button>' +
+          '<button class="btn secondary small" data-act="regen" data-id="' + c.id + '">Nueva clave</button>' +
+        '</div></td></tr>';
+    }).join('');
+  }
+
+  function load() {
+    return api('/api/admin/churches').then(function (d) {
+      churches = d.churches;
+      $('st-rooms').textContent = d.activeRooms.length;
+      $('rooms').innerHTML = d.activeRooms.length
+        ? d.activeRooms.map(function (r) { return '<li><strong>' + r.code + '</strong> · ' + (r.church_name || '') + ' · desde ' + new Date(r.created_at).toLocaleString('es'); }).join('')
+        : '<li class="mini">Ninguna sala activa.</li>';
+      render();
+    });
+  }
+
+  $('tbody').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    var id = b.getAttribute('data-id'), act = b.getAttribute('data-act');
+    var c = churches.find(function (x) { return String(x.id) === String(id); });
+    if (act === 'copy') { navigator.clipboard.writeText(c.key.replace('-', '')); msg('Clave de ' + c.name + ' copiada.'); }
+    if (act === 'welcome') { msg('Enviando correo a ' + c.name + '…'); api('/api/admin/churches/' + id + '/welcome', { method: 'POST', body: '{}' }).then(function () { msg('Correo de bienvenida enviado a ' + c.email + '.'); }).catch(function (err) { msg(err.message, true); }); }
+    if (act === 'regen') { if (confirm('¿Generar una clave nueva para ' + c.name + '? La anterior deja de funcionar.')) { api('/api/admin/churches/' + id, { method: 'PATCH', body: JSON.stringify({ regenerateKey: true }) }).then(load).then(function () { msg('Clave nueva generada.'); }); } }
+  });
+  $('tbody').addEventListener('change', function (e) {
+    var el = e.target, id = el.getAttribute('data-id'), act = el.getAttribute('data-act');
+    if (act === 'status') api('/api/admin/churches/' + id, { method: 'PATCH', body: JSON.stringify({ status: el.value }) }).then(load);
+    if (act === 'trial') api('/api/admin/churches/' + id, { method: 'PATCH', body: JSON.stringify({ trialEnds: el.value || null }) }).then(load);
+  });
+
+  $('create').addEventListener('click', function () {
+    var data = { name: $('f-name').value.trim(), contactName: $('f-contact').value.trim(), email: $('f-email').value.trim(), status: $('f-status').value, trialEnds: $('f-trial').value || null, notes: $('f-notes').value.trim() };
+    if (!data.name) { $('create-msg').textContent = 'Falta el nombre.'; return; }
+    api('/api/admin/churches', { method: 'POST', body: JSON.stringify(data) }).then(function (d) {
+      $('create-msg').textContent = 'Iglesia creada. Su clave: ' + d.church.key + ' — ahora envíale el correo de bienvenida desde su fila.';
+      $('f-name').value = $('f-contact').value = $('f-email').value = $('f-notes').value = '';
+      load();
+    }).catch(function (err) { $('create-msg').textContent = err.message; });
+  });
+
+  $('save-smtp').addEventListener('click', function () {
+    api('/api/admin/settings', { method: 'POST', body: JSON.stringify({ smtpUser: $('s-user').value.trim(), smtpPass: $('s-pass').value || undefined }) })
+      .then(function () { $('smtp-state').textContent = 'Correo guardado.'; $('s-pass').value = ''; });
+  });
+  $('logout').addEventListener('click', function () { api('/api/admin/logout', { method: 'POST', body: '{}' }).then(function () { location.reload(); }); });
+
+  function start() {
+    api('/api/admin/state').then(function (st) {
+      if (!st.authed) {
+        $('auth').hidden = false;
+        if (st.needsSetup) {
+          $('auth-title').textContent = 'Crea tu contraseña de administrador';
+          $('auth-help').textContent = 'Es el primer acceso. Esta contraseña protege todo el panel; guárdala en tu gestor de contraseñas.';
+          $('pass2-label').hidden = false;
+          $('auth-btn').textContent = 'Crear contraseña y entrar';
+        }
+        $('auth-btn').onclick = function () {
+          var p = $('pass').value;
+          if (st.needsSetup) {
+            if (p !== $('pass2').value) { $('auth-msg').textContent = 'Las contraseñas no coinciden.'; return; }
+            api('/api/admin/setup', { method: 'POST', body: JSON.stringify({ password: p }) }).then(function () { location.reload(); }).catch(function (e) { $('auth-msg').textContent = e.message; });
+          } else {
+            api('/api/admin/login', { method: 'POST', body: JSON.stringify({ password: p }) }).then(function () { location.reload(); }).catch(function (e) { $('auth-msg').textContent = e.message; });
+          }
+        };
+      } else {
+        $('dash').hidden = false;
+        api('/api/admin/settings').then(function (s) {
+          $('s-user').value = s.smtpUser || '';
+          $('smtp-state').textContent = s.smtpConfigured ? 'Contraseña de aplicación guardada.' : 'Falta la contraseña de aplicación.';
+        });
+        load();
+      }
+    });
+  }
+  start();
+})();
+</script>
+</body>
+</html>

@@ -13,15 +13,28 @@
   <p class="brand">MovilizarMe · Interpreter</p>
   <h1>Consola del intérprete</h1>
 
-  <div id="step-create">
+  <div id="step-key">
+    <p>Escribe la clave de tu iglesia o ministerio. Te la enviamos por correo al darte de alta; se recuerda en este equipo.</p>
+    <p>
+      <label for="key">Clave de tu iglesia</label><br>
+      <input id="key" type="text" autocomplete="off" autocapitalize="characters" placeholder="XXXX-XXXX" style="font-size:1.3rem;letter-spacing:.15em;text-transform:uppercase;max-width:280px">
+    </p>
+    <p><button class="btn" id="btn-key">Entrar</button></p>
+    <p class="status" id="key-status" role="status"></p>
+  </div>
+
+  <div id="step-create" hidden>
     <p>Crea la sala del servicio. El código se muestra en el proyector y la audiencia lo usa para escuchar.</p>
-    <p><button class="btn" id="btn-create">Crear sala</button></p>
+    <p><button class="btn" id="btn-create">Crear sala</button>
+       <button class="btn sec change-key" type="button">Cambiar clave</button></p>
+    <p class="status" id="create-status" role="status"></p>
   </div>
 
   <div id="step-room" hidden>
     <div class="panel center">
       <p style="margin:0">Código de sala</p>
       <p class="code" id="room-code">------</p>
+      <p class="status" id="church-name" style="margin:.2rem 0 .8rem"></p>
       <p>
         <a class="btn sec" id="link-projector" href="#" target="_blank" rel="noopener">Abrir pantalla de proyector</a>
         <a class="btn sec" id="link-listen" href="#" target="_blank" rel="noopener">Abrir página del oyente</a>
@@ -34,6 +47,7 @@
     <p>
       <button class="btn" id="btn-start">Empezar a interpretar</button>
       <button class="btn sec" id="btn-end" hidden>Terminar</button>
+      <button class="btn sec change-key" type="button">Cambiar clave</button>
     </p>
     <p class="status" id="status" role="status"></p>
     <p class="status" id="listeners"></p>
@@ -43,6 +57,7 @@
 (function () {
   var status = document.getElementById('status');
   var room = null, code = null;
+  var churchKey = localStorage.getItem('mm-church-key') || '';
 
   function setStatus(t, isError) {
     status.textContent = t || '';
@@ -55,18 +70,49 @@
         'Oyentes conectados: ' + n;
     }
   }
+  function showStep(id) {
+    ['step-key', 'step-create', 'step-room'].forEach(function (s) {
+      document.getElementById(s).hidden = s !== id;
+    });
+  }
+
+  if (churchKey) { document.getElementById('key').value = churchKey; showStep('step-create'); }
+
+  document.getElementById('btn-key').addEventListener('click', function () {
+    var v = document.getElementById('key').value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    var ks = document.getElementById('key-status');
+    if (v.length < 8) { ks.textContent = 'La clave tiene 8 caracteres (ejemplo: ABCD-2345).'; ks.className = 'status error'; return; }
+    churchKey = v;
+    localStorage.setItem('mm-church-key', v);
+    ks.textContent = '';
+    showStep('step-create');
+  });
+  document.querySelectorAll('.change-key').forEach(function (b) {
+    b.addEventListener('click', function () {
+      localStorage.removeItem('mm-church-key');
+      location.reload();
+    });
+  });
 
   document.getElementById('btn-create').addEventListener('click', async function () {
-    this.disabled = true;
+    var btn = this;
+    var cs = document.getElementById('create-status');
+    btn.disabled = true;
+    cs.textContent = 'Creando la sala…'; cs.className = 'status';
     try {
-      var res = await fetch(window.MM.api + '/api/room', { method: 'POST' });
+      var res = await fetch(window.MM.api + '/api/room', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: churchKey })
+      });
       var data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'No se pudo crear la sala.');
       code = data.room;
       document.getElementById('room-code').textContent = code;
+      document.getElementById('church-name').textContent = data.church ? ('Iglesia: ' + data.church) : '';
       document.getElementById('link-projector').href = 'proyector.html?room=' + code;
       document.getElementById('link-listen').href = window.MM.listenBase + '?room=' + code;
-      document.getElementById('step-create').hidden = true;
-      document.getElementById('step-room').hidden = false;
+      showStep('step-room');
       // Lista de micrófonos (pide permiso una vez). Si este equipo no
       // tiene micrófono, la sala ya quedó creada: se avisa aparte.
       try {
@@ -86,8 +132,9 @@
         sel.appendChild(opt);
       });
     } catch (e) {
-      setStatus('No se pudo crear la sala. Revisa la conexión del servidor.', true);
-      this.disabled = false;
+      cs.textContent = e.message; cs.className = 'status error';
+      btn.disabled = false;
+      if (/clave|suscripción|prueba/i.test(e.message)) showStep('step-key');
     }
   });
 
@@ -95,15 +142,15 @@
     var btn = this;
     btn.disabled = true;
     try {
-      setStatus('Conectando\u2026');
+      setStatus('Conectando…');
       if (!room) {
         var res = await fetch(window.MM.api + '/api/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ room: code, role: 'interpreter' })
+          body: JSON.stringify({ room: code, role: 'interpreter', key: churchKey })
         });
-        if (!res.ok) throw new Error('el servidor no dio el acceso');
         var data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'el servidor no dio el acceso');
         room = new LivekitClient.Room();
         room.on('participantConnected', updateListeners);
         room.on('participantDisconnected', updateListeners);
@@ -126,20 +173,12 @@
         }
       }
       setStatus('');
-      status.innerHTML = '<span class=\"pulse on\"></span><strong>En vivo: est\u00e1s interpretando</strong>';
+      status.innerHTML = '<span class="pulse on"></span><strong>En vivo: estás interpretando</strong>';
       btn.hidden = true;
       document.getElementById('btn-end').hidden = false;
       updateListeners();
     } catch (e) {
-      setStatus('No se pudo empezar (' + (e && e.message ? e.message : e) + '). Revisa el micr\u00f3fono y la conexi\u00f3n.', true);
-      btn.disabled = false;
-    }
-  });
-
-  document.getElementById('btn-end').hidden = false;
-      updateListeners();
-    } catch (e) {
-      setStatus('No se pudo empezar. Revisa el micrófono y la conexión.', true);
+      setStatus('No se pudo empezar (' + (e && e.message ? e.message : e) + '). Revisa el micrófono y la conexión.', true);
       btn.disabled = false;
     }
   });
