@@ -10,13 +10,28 @@
 </head>
 <body>
 <main class="projector">
-  <div>
-    <h1>Interpretación en vivo<br>Live Interpretation</h1>
-    <p>Escanea con tu teléfono · Scan with your phone</p>
-    <p class="qr" id="qr"></p>
-    <p style="margin-bottom:0">o entra a <strong>movilizar.me/escuchar</strong> con el código · or go to <strong>movilizar.me/escuchar</strong> with the code</p>
-    <p class="code" id="code">------</p>
+  <header class="proj-head">
+    <img class="proj-logo" src="https://movilizar.me/assets/logo-white.png" alt="MovilizarMe">
+    <p class="proj-slogan">Ayudando a las personas a encontrar su camino de regreso a Dios<br>
+    <span>Helping people find their way back to God</span></p>
+  </header>
+
+  <div class="proj-grid">
+    <div class="proj-info">
+      <h1>Interpretación en vivo<br>Live Interpretation</h1>
+      <p>Escanea el código con tu teléfono y escucha en tu idioma.<br>
+      <span>Scan the code with your phone and listen in your language.</span></p>
+      <p class="code-label">Código de la sala · Room code</p>
+      <p class="code-pill" id="code">------</p>
+      <p class="proj-alt">o entra a <strong>movilizar.me/escuchar</strong><br>
+      <span>or go to <strong>movilizar.me/escuchar</strong></span></p>
+    </div>
+    <div class="proj-qr">
+      <p class="qr" id="qr"></p>
+    </div>
   </div>
+
+  <footer class="proj-foot">Un servicio de MovilizarMe para las iglesias · A MovilizarMe service for churches</footer>
 </main>
 <script>
 (function () {

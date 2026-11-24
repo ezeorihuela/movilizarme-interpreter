@@ -37,10 +37,27 @@ select{font-size:1rem;padding:.55rem;border:.13rem solid var(--borde);border-rad
 .big-listen{font-size:1.5rem;padding:1.1rem 2.6rem;width:100%;max-width:24rem}
 .pulse{display:inline-block;width:.7rem;height:.7rem;border-radius:50%;background:#c33;margin-right:.45rem;vertical-align:middle}
 .pulse.on{background:#1a9e54}
-/* Proyector */
-.projector{background:var(--morado-oscuro);color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:2rem}
-.projector h1{color:#fff;font-size:clamp(2rem,5vw,3.4rem)}
-.projector .code{color:#fff;font-size:clamp(3.4rem,10vw,7rem)}
-.projector .qr{background:#fff;border-radius:1rem;padding:1.2rem;display:inline-block;line-height:0}
-.projector .qr svg{width:min(46vh,72vw);height:auto}
-.projector p{font-size:clamp(1.1rem,2.6vw,1.6rem);color:#e6ddf5}
+/* Proyector: identidad propia de MovilizarMe (logo, lema y layout editorial en dos columnas) */
+.projector{background:var(--morado-oscuro);color:#fff;min-height:100vh;display:flex;flex-direction:column;padding:2.2rem clamp(1.2rem,5vw,4rem) 1.4rem}
+.proj-head{text-align:center;border-bottom:1px solid rgba(255,255,255,.22);padding-bottom:1.2rem}
+.proj-logo{width:min(19rem,62vw);height:auto}
+.proj-slogan{font-style:italic;color:#e6ddf5;font-size:clamp(.95rem,2vw,1.2rem);margin:.7rem 0 0}
+.proj-slogan span{font-size:.85em;color:#bdb4d4}
+.proj-grid{flex:1;display:grid;grid-template-columns:1fr;gap:2rem;align-items:center;max-width:75rem;margin:0 auto;width:100%;padding:1.6rem 0}
+@media (min-width:56rem){.proj-grid{grid-template-columns:1.05fr .95fr}}
+.proj-info{text-align:center}
+@media (min-width:56rem){.proj-info{text-align:left}}
+.projector h1{color:#fff;font-size:clamp(2rem,4.6vw,3.2rem);margin-top:0}
+.proj-info p{font-size:clamp(1.05rem,2.2vw,1.4rem);color:#e6ddf5}
+.proj-info p span{color:#bdb4d4;font-size:.88em}
+.code-label{letter-spacing:.22em;text-transform:uppercase;font-size:.85rem !important;color:#9fd1d1 !important;margin-bottom:.3rem}
+.code-pill{
+  display:inline-block;font-family:"Fira Sans",sans-serif;font-weight:800;
+  font-size:clamp(2.2rem,5.5vw,3.6rem);letter-spacing:.22em;color:#fff;
+  border:.16rem solid var(--verde);border-radius:999px;padding:.35em .7em .3em .9em;margin:.2rem 0 .8rem;
+  background:rgba(23,97,95,.25);
+}
+.proj-qr{text-align:center}
+.projector .qr{background:#fff;border:.35rem solid var(--verde);border-radius:1rem;padding:1.1rem;display:inline-block;line-height:0;margin:0}
+.projector .qr svg{width:min(44vh,70vw);height:auto}
+.proj-foot{text-align:center;color:#a79fc0;font-size:.9rem;border-top:1px solid rgba(255,255,255,.22);padding-top:1rem}
