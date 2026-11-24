@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Consola del intérprete · MovilizarMe</title>
+<link rel="stylesheet" href="app.css">
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
+</head>
+<body>
+<main class="wrap">
+  <p class="brand">MovilizarMe · Interpreter</p>
+  <h1>Consola del intérprete</h1>
+
+  <div id="step-create">
+    <p>Crea la sala del servicio. El código se muestra en el proyector y la audiencia lo usa para escuchar.</p>
+    <p><button class="btn" id="btn-create">Crear sala</button></p>
+  </div>
+
+  <div id="step-room" hidden>
+    <div class="panel center">
+      <p style="margin:0">Código de sala</p>
+      <p class="code" id="room-code">------</p>
+      <p>
+        <a class="btn sec" id="link-projector" href="#" target="_blank" rel="noopener">Abrir pantalla de proyector</a>
+        <a class="btn sec" id="link-listen" href="#" target="_blank" rel="noopener">Abrir página del oyente</a>
+      </p>
+    </div>
+    <p>
+      <label for="mic">Micrófono o fuente de audio</label><br>
+      <select id="mic"></select>
+    </p>
+    <p>
+      <button class="btn" id="btn-start">Empezar a interpretar</button>
+      <button class="btn sec" id="btn-end" hidden>Terminar</button>
+    </p>
+    <p class="status" id="status" role="status"></p>
+    <p class="status" id="listeners"></p>
+  </div>
+</main>
+<script>
+(function () {
+  var status = document.getElementById('status');
+  var room = null, code = null;
+
+  function setStatus(t, isError) {
+    status.textContent = t || '';
+    status.className = 'status' + (isError ? ' error' : '');
+  }
+  function updateListeners() {
+    if (room) {
+      var n = Math.max(0, room.numParticipants - 1);
+      document.getElementById('listeners').textContent =
+        'Oyentes conectados: ' + n;
+    }
+  }
+
+  document.getElementById('btn-create').addEventListener('click', async function () {
+    this.disabled = true;
+    try {
+      var res = await fetch(window.MM.api + '/api/room', { method: 'POST' });
+      var data = await res.json();
+      code = data.room;
+      document.getElementById('room-code').textContent = code;
+      document.getElementById('link-projector').href = 'proyector.html?room=' + code;
+      document.getElementById('link-listen').href = window.MM.listenBase + '?room=' + code;
+      document.getElementById('step-create').hidden = true;
+      document.getElementById('step-room').hidden = false;
+      // Lista de micrófonos (pide permiso una vez)
+      await navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) {
+        s.getTracks().forEach(function (t) { t.stop(); });
+      });
+      var devices = await navigator.mediaDevices.enumerateDevices();
+      var sel = document.getElementById('mic');
+      devices.filter(function (d) { return d.kind === 'audioinput'; }).forEach(function (d, i) {
+        var opt = document.createElement('option');
+        opt.value = d.deviceId;
+        opt.textContent = d.label || ('Micrófono ' + (i + 1));
+        sel.appendChild(opt);
+      });
+    } catch (e) {
+      setStatus('No se pudo crear la sala. Revisa la conexión del servidor.', true);
+      this.disabled = false;
+    }
+  });
+
+  document.getElementById('btn-start').addEventListener('click', async function () {
+    var btn = this;
+    btn.disabled = true;
+    setStatus('Conectando…');
+    try {
+      var res = await fetch(window.MM.api + '/api/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ room: code, role: 'interpreter' })
+      });
+      if (!res.ok) throw new Error('token');
+      var data = await res.json();
+      room = new LivekitClient.Room();
+      room.on('participantConnected', updateListeners);
+      room.on('participantDisconnected', updateListeners);
+      await room.connect(data.url, data.token);
+      var deviceId = document.getElementById('mic').value;
+      await room.localParticipant.enableMicrophone({
+        deviceId: deviceId ? { exact: deviceId } : undefined,
+        echoCancellation: false, noiseSuppression: false, autoGainControl: false
+      });
+      setStatus('');
+      status.innerHTML = '<span class="pulse on"></span><strong>En vivo: estás interpretando</strong>';
+      btn.hidden = true;
+      document.getElementById('btn-end').hidden = false;
+      updateListeners();
+    } catch (e) {
+      setStatus('No se pudo empezar. Revisa el micrófono y la conexión.', true);
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById('btn-end').addEventListener('click', function () {
+    if (room) { room.disconnect(); room = null; }
+    location.reload();
+  });
+})();
+</script>
+</body>
+</html>

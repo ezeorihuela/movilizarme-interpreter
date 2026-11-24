@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Escuchar interpretación · MovilizarMe</title>
+<link rel="stylesheet" href="app.css">
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
+</head>
+<body>
+<main class="wrap center">
+  <p class="brand">MovilizarMe · Interpretación en vivo</p>
+  <h1 id="t-title">Escucha la interpretación</h1>
+  <p id="t-intro">Escribe el código de sala que se ve en la pantalla y toca Escuchar.</p>
+
+  <div id="step-code">
+    <p><input type="text" id="room" maxlength="6" autocomplete="off" autocapitalize="characters" aria-label="Código de sala"></p>
+    <p><button class="btn big-listen" id="btn-listen">Escuchar</button></p>
+  </div>
+
+  <p class="status" id="status" role="status"></p>
+  <div id="step-live" hidden>
+    <p><span class="pulse on"></span><strong id="t-live">Estás escuchando en vivo</strong></p>
+    <p><button class="btn sec" id="btn-stop">Dejar de escuchar</button></p>
+  </div>
+  <p class="status" id="t-tip">Usa audífonos para escuchar mejor. Puedes bloquear tu teléfono; el audio sigue.</p>
+</main>
+<script>
+(function () {
+  var EN = (navigator.language || 'es').toLowerCase().indexOf('en') === 0;
+  if (EN) {
+    document.documentElement.lang = 'en';
+    document.title = 'Listen to the interpretation · MovilizarMe';
+    var T = {
+      't-title': 'Listen to the interpretation',
+      't-intro': 'Type the room code shown on the screen and tap Listen.',
+      'btn-listen': 'Listen',
+      't-live': 'You are listening live',
+      'btn-stop': 'Stop listening',
+      't-tip': 'Headphones work best. You can lock your phone; the audio keeps playing.'
+    };
+    Object.keys(T).forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = T[id];
+    });
+  }
+  var msg = {
+    connecting: EN ? 'Connecting…' : 'Conectando…',
+    waiting: EN ? 'Connected. Waiting for the interpreter to start…' : 'Conectado. Esperando a que el intérprete comience…',
+    needCode: EN ? 'Type the 6-letter room code.' : 'Escribe el código de sala de 6 letras.',
+    badRoom: EN ? 'That room was not found. Check the code on the screen.' : 'No se encontró esa sala. Revisa el código en la pantalla.',
+    failed: EN ? 'Could not connect. Try again.' : 'No se pudo conectar. Inténtalo de nuevo.'
+  };
+  var status = document.getElementById('status');
+  var input = document.getElementById('room');
+  var params = new URLSearchParams(location.search);
+  if (params.get('room')) input.value = params.get('room').toUpperCase();
+
+  var room = null;
+  function setStatus(text, isError) {
+    status.textContent = text || '';
+    status.className = 'status' + (isError ? ' error' : '');
+  }
+
+  document.getElementById('btn-listen').addEventListener('click', async function () {
+    var code = input.value.trim().toUpperCase();
+    if (code.length !== 6) { setStatus(msg.needCode, true); return; }
+    var btn = this;
+    btn.disabled = true;
+    setStatus(msg.connecting);
+    try {
+      var res = await fetch(window.MM.api + '/api/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ room: code, role: 'listener' })
+      });
+      if (!res.ok) throw new Error(res.status === 404 ? 'room' : 'server');
+      var data = await res.json();
+      room = new LivekitClient.Room({ adaptiveStream: false });
+      room.on('trackSubscribed', function (track) {
+        if (track.kind === 'audio') {
+          track.attach();
+          document.getElementById('step-code').hidden = true;
+          document.getElementById('step-live').hidden = false;
+          setStatus('');
+        }
+      });
+      room.on('disconnected', function () { stop(); });
+      await room.connect(data.url, data.token);
+      setStatus(msg.waiting);
+    } catch (e) {
+      setStatus(e.message === 'room' ? msg.badRoom : msg.failed, true);
+      btn.disabled = false;
+    }
+  });
+
+  function stop() {
+    if (room) { room.disconnect(); room = null; }
+    document.getElementById('step-code').hidden = false;
+    document.getElementById('step-live').hidden = true;
+    document.getElementById('btn-listen').disabled = false;
+  }
+  document.getElementById('btn-stop').addEventListener('click', stop);
+})();
+</script>
+</body>
+</html>

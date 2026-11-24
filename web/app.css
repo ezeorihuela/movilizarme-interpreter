@@ -1,0 +1,46 @@
+/* MovilizarMe Interpreter - pantallas del servicio (intérprete, proyector, oyente) */
+:root{
+  --morado:#453a63; --morado-oscuro:#342b4d; --morado-suave:#f4f1f8;
+  --verde:#17615f; --texto:#453e57; --suave:#555064; --borde:#ddd6ea;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; font-family:"Open Sans",system-ui,Arial,sans-serif; color:var(--texto);
+  background:#fff; line-height:1.55;
+}
+.wrap{max-width:44rem;margin:0 auto;padding:1.4rem 1.1rem 3rem}
+h1{font-family:"Fira Sans","Open Sans",sans-serif;color:var(--morado-oscuro);line-height:1.15;margin:.4rem 0 .8rem}
+h2{font-family:"Fira Sans","Open Sans",sans-serif;color:var(--morado-oscuro)}
+.brand{font-weight:700;color:var(--morado);letter-spacing:.02em}
+.btn{
+  display:inline-block;background:var(--verde);color:#fff;border:0;cursor:pointer;
+  font-weight:700;font-size:1.1rem;padding:.8rem 1.9rem;border-radius:.25rem;margin:.3rem .4rem .3rem 0;
+}
+.btn:hover{background:#0f4a48}
+.btn.sec{background:transparent;color:var(--morado);box-shadow:inset 0 0 0 .13rem var(--morado)}
+.btn.sec:hover{background:var(--morado-suave)}
+.btn[disabled]{opacity:.5;cursor:wait}
+input[type=text]{
+  font-size:1.5rem;letter-spacing:.25em;text-transform:uppercase;text-align:center;
+  padding:.7rem .5rem;border:.13rem solid var(--borde);border-radius:.4rem;width:100%;max-width:20rem;
+}
+select{font-size:1rem;padding:.55rem;border:.13rem solid var(--borde);border-radius:.4rem;max-width:100%}
+.status{font-size:1.05rem;margin:1rem 0;color:var(--suave)}
+.status strong{color:var(--verde)}
+.error{color:#a11;font-weight:600}
+.panel{background:var(--morado-suave);border-radius:.625rem;padding:1.2rem 1.3rem;margin:1.2rem 0}
+.code{
+  font-family:"Fira Sans",sans-serif;font-size:3rem;font-weight:800;letter-spacing:.18em;
+  color:var(--morado-oscuro);text-align:center;margin:.4rem 0;
+}
+.center{text-align:center}
+.big-listen{font-size:1.5rem;padding:1.1rem 2.6rem;width:100%;max-width:24rem}
+.pulse{display:inline-block;width:.7rem;height:.7rem;border-radius:50%;background:#c33;margin-right:.45rem;vertical-align:middle}
+.pulse.on{background:#1a9e54}
+/* Proyector */
+.projector{background:var(--morado-oscuro);color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:2rem}
+.projector h1{color:#fff;font-size:clamp(2rem,5vw,3.4rem)}
+.projector .code{color:#fff;font-size:clamp(3.4rem,10vw,7rem)}
+.projector .qr{background:#fff;border-radius:1rem;padding:1.2rem;display:inline-block;line-height:0}
+.projector .qr svg{width:min(46vh,72vw);height:auto}
+.projector p{font-size:clamp(1.1rem,2.6vw,1.6rem);color:#e6ddf5}
