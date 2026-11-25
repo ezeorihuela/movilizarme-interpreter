@@ -88,6 +88,10 @@
       });
       if (!res.ok) throw new Error(res.status === 404 ? 'room' : 'server');
       var data = await res.json();
+      if (data.title) {
+        document.getElementById('t-title').textContent = data.title;
+        document.title = data.title + ' · MovilizarMe';
+      }
       room = new LivekitClient.Room({ adaptiveStream: false });
       room.on('trackSubscribed', function (track) {
         if (track.kind === 'audio') {

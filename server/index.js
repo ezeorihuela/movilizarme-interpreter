@@ -43,6 +43,7 @@ async function dbInit() {
     code TEXT PRIMARY KEY, church_id INT, church_name TEXT DEFAULT '',
     created_at TIMESTAMPTZ DEFAULT now(), finished_at TIMESTAMPTZ,
     participant_minutes NUMERIC DEFAULT 0, listener_minutes NUMERIC DEFAULT 0, peak INT DEFAULT 0)`);
+  await pool.query(`ALTER TABLE rooms ADD COLUMN IF NOT EXISTS title TEXT DEFAULT ''`);
 }
 const store = {
   async getSetting(k) {
@@ -88,9 +89,9 @@ const store = {
     }
     return next;
   },
-  async createRoom(code, church) {
-    if (pool) await pool.query('INSERT INTO rooms(code, church_id, church_name) VALUES($1,$2,$3)', [code, church ? church.id : null, church ? church.name : '']);
-    else mem.rooms.set(code, { code, church_id: church ? church.id : null, church_name: church ? church.name : '', created_at: Date.now(), finished_at: null, participant_minutes: 0, listener_minutes: 0, peak: 0 });
+  async createRoom(code, church, title) {
+    if (pool) await pool.query('INSERT INTO rooms(code, church_id, church_name, title) VALUES($1,$2,$3,$4)', [code, church ? church.id : null, church ? church.name : '', title || '']);
+    else mem.rooms.set(code, { code, church_id: church ? church.id : null, church_name: church ? church.name : '', title: title || '', created_at: Date.now(), finished_at: null, participant_minutes: 0, listener_minutes: 0, peak: 0 });
   },
   async getRoom(code) {
     if (pool) { const r = await pool.query('SELECT * FROM rooms WHERE code=$1', [code]); return r.rows[0] || null; }
@@ -327,16 +328,22 @@ app.get('/health', async (req, res) => {
   res.json({ ok: true, service: 'movilizarme-interpreter', version: 2, livekit: LIVEKIT_URL ? 'configurado' : 'sin-configurar', datos: pool ? 'base-de-datos' : 'memoria' });
 });
 
-// Crear sala: exige la clave de una iglesia con suscripción válida
+// Crear sala: exige la clave de una iglesia con suscripción válida.
+// Nombre del evento (opcional): lo escribe la consola, por ejemplo
+// "Servicio dominical" o "Conferencia", y el oyente lo ve como título.
+function cleanTitle(v) {
+  return String(v || '').replace(/[<>\u0000-\u001f]/g, '').trim().slice(0, 80);
+}
 app.post('/api/room', async (req, res) => {
   const key = normKey((req.body || {}).key);
   const church = await store.getChurchByKey(key);
   const v = churchValid(church);
   if (!v.ok) return res.status(403).json({ error: v.error });
+  const title = cleanTitle((req.body || {}).name);
   let code = makeCode(6);
   while (await store.getRoom(code)) code = makeCode(6);
-  await store.createRoom(code, church);
-  res.json({ room: code, church: church.name });
+  await store.createRoom(code, church, title);
+  res.json({ room: code, church: church.name, title });
 });
 
 // Token temporal de Azure para el modo IA de la consola.
@@ -385,7 +392,7 @@ app.post('/api/token', async (req, res) => {
   const identity = (isInterpreter ? 'interprete-' : 'oyente-') + Math.random().toString(36).slice(2, 9);
   const at = new AccessToken(API_KEY, API_SECRET, { identity, name: name || (isInterpreter ? 'Intérprete' : 'Oyente'), ttl: '6h' });
   at.addGrant({ roomJoin: true, room: code, canPublish: isInterpreter, canSubscribe: true, canPublishData: isInterpreter });
-  res.json({ token: await at.toJwt(), url: LIVEKIT_URL, room: code });
+  res.json({ token: await at.toJwt(), url: LIVEKIT_URL, room: code, title: r.title || '' });
 });
 
 // ---------------- Panel de administración ----------------
