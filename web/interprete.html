@@ -400,7 +400,12 @@
       ai.dest = ai.ctx.createMediaStreamDestination();
     }
     if (!ai.aiPub) {
-      ai.aiPub = await room.localParticipant.publishTrack(ai.dest.stream.getAudioTracks()[0], { source: LivekitClient.Track.Source.Microphone });
+      // La voz de la IA NO se publica como "micrófono": si ocupara ese
+      // lugar, LiveKit creería que el micrófono ya está encendido y la
+      // pausa con voz original no podría abrir el micrófono de verdad
+      // (pasó en la prueba del 25 nov: la publicación del micrófono
+      // nunca se creaba y Pausar no hacía nada).
+      ai.aiPub = await room.localParticipant.publishTrack(ai.dest.stream.getAudioTracks()[0], { source: LivekitClient.Track.Source.Unknown });
     }
     if (ai.ctx.state === 'suspended') { try { await ai.ctx.resume(); } catch (e) {} }
     // Pista del micrófono para la pausa con voz original: se enciende por
