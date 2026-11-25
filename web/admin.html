@@ -25,6 +25,11 @@
   button.small{padding:.35rem .8rem;font-size:.85rem}
   .msg{margin:.6rem 0;font-weight:600}
   .msg.err{color:#b3261e}
+  .state{margin:.8rem 0 0;padding:.65rem .9rem;border-radius:.5rem;font-weight:600;display:none}
+  .state.ok{display:block;background:#e3f2e7;color:#14532d;border:1px solid #9ccc9c}
+  .state.err{display:block;background:#fdecea;color:#7a1a14;border:1px solid #f0b3ad}
+  .state.note{display:block;background:#f4f1fa;color:#453a63;border:1px solid #d8d2ea;font-weight:500}
+  input:disabled{background:#f1eef7;color:#6d6486}
   dialog{border:1px solid #e6e2ef;border-radius:.625rem;max-width:420px;width:92%}
 </style>
 </head>
@@ -93,13 +98,17 @@
 
     <div class="card">
       <h2>Correo de bienvenida (SMTP)</h2>
-      <p class="mini">Para que el panel envíe las claves por correo, guarda tu correo de envío y una contraseña de aplicación de Google (se crea en myaccount.google.com/apppasswords). Queda guardada solo en tu base de datos.</p>
+      <p class="mini">Para que el panel envíe las claves por correo, guarda tu correo de envío y una contraseña de aplicación de Google (se crea en myaccount.google.com/apppasswords). Queda guardada solo en tu base de datos. Una vez guardado, los campos quedan bloqueados: para cambiarlos usa Editar, con doble confirmación.</p>
       <div class="row">
         <label>Correo de envío<input id="s-user" type="email" placeholder="ezequiel@movilizar.me"></label>
         <label>Contraseña de aplicación<input id="s-pass" type="password" placeholder="••••••••••••••••"></label>
       </div>
-      <p class="mini" id="smtp-state"></p>
-      <button class="btn" id="save-smtp">Guardar correo</button>
+      <div class="btnrow">
+        <button class="btn" id="save-smtp">Guardar correo</button>
+        <button class="btn secondary" id="edit-smtp" hidden>Editar</button>
+        <button class="btn secondary" id="cancel-smtp" hidden>Cancelar</button>
+      </div>
+      <p class="state" id="smtp-state"></p>
     </div>
 
     <p><button class="btn secondary" id="logout">Cerrar sesión</button></p>
@@ -178,17 +187,38 @@
     }).catch(function (err) { $('create-msg').textContent = err.message; });
   });
 
-  function showSmtp(s) {
-    $('s-user').value = s.smtpUser || '';
-    $('smtp-state').textContent = !s.smtpUser ? 'Falta el correo de envío.' :
-      (s.smtpConfigured ? 'Guardado: ' + s.smtpUser + ' · contraseña de aplicación guardada.' : 'Guardado: ' + s.smtpUser + ' · FALTA la contraseña de aplicación.');
+  var smtpSaved = null;
+  function smtpState(kind, text) { var el = $('smtp-state'); el.className = 'state ' + kind; el.textContent = text; }
+  function lockSmtp(lock) {
+    $('s-user').disabled = lock;
+    $('s-pass').disabled = lock;
+    $('save-smtp').hidden = lock;
+    $('cancel-smtp').hidden = lock;
+    $('edit-smtp').hidden = !lock;
+    if (lock) { $('s-pass').value = ''; $('s-pass').placeholder = smtpSaved && smtpSaved.smtpConfigured ? '•••••••• (guardada)' : 'Sin guardar'; }
+    else { $('s-pass').placeholder = 'Escribe solo si quieres cambiarla'; }
   }
+  function showSmtp(s) {
+    smtpSaved = s;
+    $('s-user').value = s.smtpUser || '';
+    if (!s.smtpUser) { lockSmtp(false); smtpState('note', 'Todavía no hay correo de envío guardado.'); return; }
+    lockSmtp(true);
+    if (s.smtpConfigured) smtpState('ok', 'Guardado y verificado: ' + s.smtpUser + ' · contraseña de aplicación guardada.');
+    else smtpState('err', 'Guardado: ' + s.smtpUser + ' · FALTA la contraseña de aplicación. Usa Editar para agregarla.');
+  }
+  $('edit-smtp').addEventListener('click', function () {
+    if (!confirm('¿Editar el correo de envío? Un cambio incorrecto detiene los correos de bienvenida.')) return;
+    if (!confirm('Segunda confirmación: ¿continuar con la edición?')) return;
+    lockSmtp(false);
+    smtpState('note', 'Editando. Si dejas la contraseña vacía, se conserva la guardada. Al terminar, pulsa Guardar correo.');
+  });
+  $('cancel-smtp').addEventListener('click', function () { if (smtpSaved) showSmtp(smtpSaved); });
   $('save-smtp').addEventListener('click', function () {
-    $('smtp-state').textContent = 'Guardando…';
+    smtpState('note', 'Guardando…');
     api('/api/admin/settings', { method: 'POST', body: JSON.stringify({ smtpUser: $('s-user').value.trim(), smtpPass: $('s-pass').value || undefined }) })
-      .then(function () { $('s-pass').value = ''; return api('/api/admin/settings'); })
+      .then(function () { return api('/api/admin/settings'); })
       .then(showSmtp)
-      .catch(function (err) { $('smtp-state').textContent = 'No se guardó: ' + err.message; });
+      .catch(function (err) { smtpState('err', 'No se guardó: ' + err.message); });
   });
   $('logout').addEventListener('click', function () { api('/api/admin/logout', { method: 'POST', body: '{}' }).then(function () { location.reload(); }); });
 
