@@ -32,7 +32,6 @@
   </div>
 
   <footer class="proj-foot">Un servicio de MovilizarMe para las iglesias · A MovilizarMe service for churches</footer>
-  <p style="text-align:right;margin:.8rem 0 0"><button class="btn sec" id="btn-img" type="button" style="color:#e6ddf5;box-shadow:inset 0 0 0 .13rem #e6ddf5">Descargar imagen · Download image</button></p>
 </main>
 <script>
 (function () {
@@ -46,81 +45,6 @@
     document.getElementById('qr').innerHTML = qr.createSvgTag({ cellSize: 8, margin: 0, scalable: true });
   }
 
-  // Descargar la tarjeta como imagen PNG 1920x1080 para el proyector
-  document.getElementById('btn-img').addEventListener('click', function () {
-    if (!code) return;
-    var W = 1920, H = 1080;
-    var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-    var x = cv.getContext('2d');
-    x.fillStyle = '#342b4d'; x.fillRect(0, 0, W, H);
-    var F = '"Fira Sans","Open Sans",sans-serif';
-    function finish() {
-      // Título e instrucciones (izquierda)
-      x.textAlign = 'left'; x.fillStyle = '#fff';
-      x.font = '700 88px ' + F;
-      x.fillText('Interpretación en vivo', 120, 430);
-      x.fillText('Live Interpretation', 120, 535);
-      x.font = '400 40px ' + F; x.fillStyle = '#e6ddf5';
-      x.fillText('Escanea el código con tu teléfono', 120, 625);
-      x.fillText('y escucha en tu idioma.', 120, 675);
-      x.font = '400 34px ' + F; x.fillStyle = '#bdb4d4';
-      x.fillText('Scan the code with your phone and listen in your language.', 120, 730);
-      x.font = '600 30px ' + F; x.fillStyle = '#8fd0cc';
-      x.fillText('C Ó D I G O   D E   L A   S A L A   ·   R O O M   C O D E', 120, 815);
-      // Pastilla con el código
-      x.beginPath();
-      var pw = 470, ph = 110, px = 120, py = 845;
-      x.roundRect(px, py, pw, ph, 55);
-      x.fillStyle = 'rgba(23,97,95,.35)'; x.fill();
-      x.lineWidth = 4; x.strokeStyle = '#2a9d8f'; x.stroke();
-      x.font = '700 62px ' + F; x.fillStyle = '#fff'; x.textAlign = 'center';
-      x.fillText(code.split('').join(' '), px + pw / 2, py + 74);
-      x.textAlign = 'left'; x.font = '400 36px ' + F; x.fillStyle = '#e6ddf5';
-      x.fillText('o entra a movilizar.me/escuchar', 640, 890);
-      x.font = '400 30px ' + F; x.fillStyle = '#bdb4d4';
-      x.fillText('or go to movilizar.me/escuchar', 640, 935);
-      // QR a la derecha
-      var q = qrcode(0, 'M'); q.addData(url); q.make();
-      var n = q.getModuleCount(), box = 620, bx = 1150, by = 300, pad = 36;
-      x.beginPath(); x.roundRect(bx - pad, by - pad, box + pad * 2, box + pad * 2, 28);
-      x.fillStyle = '#fff'; x.fill();
-      x.lineWidth = 10; x.strokeStyle = '#17615f'; x.stroke();
-      var cell = box / n; x.fillStyle = '#000';
-      for (var r = 0; r < n; r++) for (var c = 0; c < n; c++)
-        if (q.isDark(r, c)) x.fillRect(bx + c * cell, by + r * cell, Math.ceil(cell), Math.ceil(cell));
-      // Pie
-      x.font = 'italic 400 30px ' + F; x.fillStyle = '#bdb4d4'; x.textAlign = 'center';
-      x.fillText('Un servicio de MovilizarMe para las iglesias · A MovilizarMe service for churches', W / 2, 1030);
-      var a = document.createElement('a');
-      a.download = 'interpretacion-' + code + '.png';
-      a.href = cv.toDataURL('image/png');
-      a.click();
-    }
-    // Encabezado: logo y lema
-    x.textAlign = 'center';
-    var img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = function () {
-      var w = 560, h = w * img.height / img.width;
-      x.drawImage(img, (W - w) / 2, 58, w, h);
-      slogan();
-    };
-    img.onerror = function () {
-      x.font = '700 64px ' + F; x.fillStyle = '#fff';
-      x.fillText('MovilizarMe', W / 2, 140);
-      slogan();
-    };
-    function slogan() {
-      x.font = 'italic 400 36px ' + F; x.fillStyle = '#e6ddf5';
-      x.fillText('Ayudando a las personas a encontrar su camino de regreso a Dios', W / 2, 268);
-      x.font = 'italic 400 30px ' + F; x.fillStyle = '#bdb4d4';
-      x.fillText('Helping people find their way back to God', W / 2, 312);
-      x.strokeStyle = 'rgba(255,255,255,.22)'; x.lineWidth = 2;
-      x.beginPath(); x.moveTo(90, 345); x.lineTo(W - 90, 345); x.stroke();
-      finish();
-    }
-    img.src = 'https://movilizar.me/assets/logo-white.png';
-  });
 })();
 </script>
 </body>
