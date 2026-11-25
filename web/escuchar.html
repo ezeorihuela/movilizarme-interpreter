@@ -48,6 +48,10 @@
     <p><button class="playbtn stop" id="btn-stop" type="button" aria-label="Detener">■</button></p>
     <p class="playlbl" id="t-stop-lbl">Detener</p>
   </div>
+  <details id="diag" style="margin-top:1.2rem;text-align:left;max-width:42rem;margin-left:auto;margin-right:auto">
+    <summary style="cursor:pointer;font-weight:600">Diagnóstico de audio</summary>
+    <p class="status" id="diag-body" style="white-space:pre-line"></p>
+  </details>
   <p class="status" id="t-tip">Usa audífonos para escuchar mejor. Puedes bloquear tu teléfono; el audio sigue.</p>
 </main>
 <script>
@@ -83,6 +87,35 @@
 
   var room = null;
   var isLive = false;
+  // Diagnóstico: por cada pista recibida, si el emisor la tiene silenciada
+  // y cuánto nivel de sonido trae de verdad.
+  var diagCtx = null, diagTracks = [], diagTimer = null;
+  function makeMeter(stream) {
+    try {
+      if (!diagCtx) { var AC = window.AudioContext || window.webkitAudioContext; diagCtx = new AC(); }
+      if (diagCtx.state === 'suspended') diagCtx.resume();
+      var srcNode = diagCtx.createMediaStreamSource(stream);
+      var an = diagCtx.createAnalyser(); an.fftSize = 256;
+      srcNode.connect(an);
+      var data = new Uint8Array(an.frequencyBinCount);
+      return function () {
+        an.getByteTimeDomainData(data);
+        var peak = 0;
+        for (var i = 0; i < data.length; i++) { var v = Math.abs(data[i] - 128) / 128; if (v > peak) peak = v; }
+        return Math.round(peak * 100);
+      };
+    } catch (e) { return function () { return -1; }; }
+  }
+  function updateDiag() {
+    var det = document.getElementById('diag');
+    var el = document.getElementById('diag-body');
+    if (!el || !det || !det.open) return;
+    var lines = ['Conexión: ' + (room ? room.state : 'sin sala'), 'Pistas de audio recibidas: ' + diagTracks.length];
+    diagTracks.forEach(function (d, i) {
+      lines.push('Pista ' + (i + 1) + ': ' + (d.track.isMuted ? 'silenciada por el emisor' : 'activa') + ' · Nivel: ' + d.meter() + '%');
+    });
+    el.textContent = lines.join('\n');
+  }
   // ¿Dos textos son casi el mismo? Azure a veces cierra la misma frase dos
   // veces con una palabra distinta; sin este filtro la anterior y la nueva
   // se veían duplicadas en pantalla.
@@ -107,6 +140,7 @@
     if (code.length !== 6) { setStatus(msg.needCode, true); return; }
     var btn = this;
     btn.disabled = true;
+    if (!diagCtx) { try { diagCtx = new (window.AudioContext || window.webkitAudioContext)(); diagCtx.resume(); } catch (e) {} }
     setStatus(msg.connecting);
     try {
       var res = await fetch(window.MM.api + '/api/token', {
@@ -124,6 +158,8 @@
       room.on('trackSubscribed', function (track) {
         if (track.kind === 'audio') {
           track.attach();
+          try { diagTracks.push({ track: track, meter: makeMeter(new MediaStream([track.mediaStreamTrack])) }); } catch (e) {}
+          if (!diagTimer) diagTimer = setInterval(updateDiag, 500);
           isLive = true;
           document.getElementById('step-code').hidden = true;
           document.getElementById('step-live').hidden = false;
@@ -161,6 +197,7 @@
 
   function stop() {
     isLive = false;
+    diagTracks = [];
     if (room) { room.disconnect(); room = null; }
     document.getElementById('step-code').hidden = false;
     document.getElementById('step-live').hidden = true;

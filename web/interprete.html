@@ -130,6 +130,10 @@
       </div>
       <p class="status" id="status" role="status"></p>
       <p class="status" id="listeners"></p>
+      <details id="diag" style="margin-top:1rem">
+        <summary style="cursor:pointer;font-weight:600;color:var(--morado)">Diagnóstico de audio</summary>
+        <p class="status" id="diag-body" style="white-space:pre-line"></p>
+      </details>
       <p class="center" style="margin-bottom:0"><button class="btn sec change-key" type="button">Cambiar clave</button></p>
     </section>
   </div>
@@ -205,6 +209,44 @@
     });
   }
   var ai = { rec: null, cfg: null, ctx: null, dest: null, nextTime: 0, refreshTimer: null, live: false, aiPub: null, micPub: null, micStream: null, paused: false };
+  // Diagnóstico de audio: medidores de nivel y estado de cada eslabón de
+  // la cadena, para ver en pantalla dónde se corta el sonido.
+  var diagCtx = null, diagAiMeter = null, diagMicMeter = null, diagTimer = null;
+  function makeMeter(stream) {
+    try {
+      if (!diagCtx) { var AC = window.AudioContext || window.webkitAudioContext; diagCtx = new AC(); }
+      if (diagCtx.state === 'suspended') diagCtx.resume();
+      var srcNode = diagCtx.createMediaStreamSource(stream);
+      var an = diagCtx.createAnalyser(); an.fftSize = 256;
+      srcNode.connect(an);
+      var data = new Uint8Array(an.frequencyBinCount);
+      return function () {
+        an.getByteTimeDomainData(data);
+        var peak = 0;
+        for (var i = 0; i < data.length; i++) { var v = Math.abs(data[i] - 128) / 128; if (v > peak) peak = v; }
+        return Math.round(peak * 100);
+      };
+    } catch (e) { return function () { return -1; }; }
+  }
+  function startDiag() {
+    if (diagTimer) return;
+    diagTimer = setInterval(function () {
+      var det = document.getElementById('diag');
+      var el = document.getElementById('diag-body');
+      if (!el || !det || !det.open) return;
+      var lines = [];
+      lines.push('Motor de sonido de la IA: ' + (ai.ctx ? ai.ctx.state : 'sin crear'));
+      if (ai.dest && !diagAiMeter) diagAiMeter = makeMeter(ai.dest.stream);
+      if (diagAiMeter) lines.push('Voz de la IA entrando al mezclador: ' + diagAiMeter() + '%');
+      if (ai.micPub && ai.micPub.track && !diagMicMeter) {
+        try { diagMicMeter = makeMeter(new MediaStream([ai.micPub.track.mediaStreamTrack])); } catch (e) {}
+      }
+      if (diagMicMeter) lines.push('Nivel del micrófono original: ' + diagMicMeter() + '%');
+      lines.push('Publicación de la voz IA: ' + (ai.aiPub ? (ai.aiPub.isMuted ? 'silenciada' : 'activa') : 'no existe'));
+      lines.push('Publicación del micrófono: ' + (ai.micPub ? (ai.micPub.isMuted ? 'silenciada' : 'activa') : 'no existe'));
+      el.textContent = lines.join('\n');
+    }, 500);
+  }
 
   function langName(c) {
     for (var i = 0; i < LANGS.length; i++) if (LANGS[i][0] === c) return LANGS[i][1];
@@ -361,23 +403,26 @@
       ai.aiPub = await room.localParticipant.publishTrack(ai.dest.stream.getAudioTracks()[0], { source: LivekitClient.Track.Source.Microphone });
     }
     if (ai.ctx.state === 'suspended') { try { await ai.ctx.resume(); } catch (e) {} }
-    // Pista del micrófono para la pausa con voz original: se publica
-    // silenciada; al pausar se activa ella y se silencia la de la IA.
+    // Pista del micrófono para la pausa con voz original: se enciende por
+    // la vía propia de LiveKit (la misma del modo humano, ya probada en
+    // este equipo) y su publicación nace silenciada; al pausar se activa
+    // ella y se silencia la de la IA.
     if (!ai.micPub) {
       try {
-        var micId = document.getElementById('mic').value;
-        var micOpts = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
-        var micStream;
+        var before = {};
+        room.localParticipant.trackPublications.forEach(function (p) { before[p.trackSid] = 1; });
+        var deviceId2 = document.getElementById('mic').value;
+        var base2 = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
         try {
-          var withDev = Object.assign({}, micOpts);
-          if (micId) withDev.deviceId = { exact: micId };
-          micStream = await navigator.mediaDevices.getUserMedia({ audio: withDev });
-        } catch (e1) {
-          micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          var conDev2 = Object.assign({}, base2);
+          if (deviceId2) conDev2.deviceId = { exact: deviceId2 };
+          await room.localParticipant.setMicrophoneEnabled(true, conDev2);
+        } catch (micErrA) {
+          try { await room.localParticipant.setMicrophoneEnabled(true, base2); }
+          catch (micErrB) { await room.localParticipant.setMicrophoneEnabled(true); }
         }
-        ai.micStream = micStream;
-        ai.micPub = await room.localParticipant.publishTrack(micStream.getAudioTracks()[0], { source: LivekitClient.Track.Source.Microphone });
-        await ai.micPub.mute();
+        room.localParticipant.trackPublications.forEach(function (p) { if (!before[p.trackSid]) ai.micPub = p; });
+        if (ai.micPub) await ai.micPub.mute();
       } catch (e2) {
         ai.micPub = null;
       }
@@ -547,6 +592,7 @@
     btn.disabled = true;
     try {
       setStatus('Conectando…');
+      if (!diagCtx) { try { var ACD = window.AudioContext || window.webkitAudioContext; diagCtx = new ACD(); diagCtx.resume(); } catch (e) {} }
       if (document.getElementById('mode').value === 'ai' && !ai.ctx) {
         // El contexto de audio se crea AQUÍ, dentro del toque del botón:
         // si se crea después de esperas de red, el iPad lo deja suspendido
@@ -607,6 +653,7 @@
       btn.hidden = true;
       document.getElementById('btn-end').hidden = false;
       updateListeners();
+      startDiag();
     } catch (e) {
       setStatus('No se pudo empezar (' + (e && e.message ? e.message : e) + '). Revisa el micrófono y la conexión.', true);
       btn.disabled = false;
