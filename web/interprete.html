@@ -68,6 +68,23 @@
         <label for="ai-dst">La IA interpreta a (idioma de destino)</label><br>
         <select id="ai-dst"></select>
       </p>
+      <p>
+        <label for="ai-voice">Voz de la IA</label><br>
+        <select id="ai-voice"></select>
+      </p>
+      <p>
+        <label for="ai-prof">Filtro de palabras</label><br>
+        <select id="ai-prof">
+          <option value="Masked" selected>Activado: oculta la palabra con asteriscos</option>
+          <option value="Removed">Activado: quita la palabra</option>
+          <option value="Raw">Desactivado</option>
+        </select>
+      </p>
+      <p>
+        <label for="ai-model">Modelo personalizado de traducción (opcional)</label><br>
+        <input id="ai-model" type="text" autocomplete="off" placeholder="ID del modelo (Azure Custom Translator)" style="max-width:430px">
+        <br><span class="status">Por sesión. Vacío = modelo general de Azure.</span>
+      </p>
       <p class="status" id="ai-state" role="status"></p>
       <div id="ai-text" hidden>
         <p style="margin:.5rem 0"><strong>Original:</strong> <span id="ai-orig"></span></p>
@@ -123,7 +140,37 @@
   var RECOG = { 'es': 'es-MX', 'en': 'en-US', 'pt': 'pt-BR', 'fr': 'fr-FR', 'de': 'de-DE', 'it': 'it-IT', 'zh-Hans': 'zh-CN', 'ko': 'ko-KR', 'ht': 'ht-HT' };
   // Voz de la IA por idioma de destino. El criollo haitiano no tiene voz en
   // esta lista: en ese destino no se fuerza ninguna y Azure usa la suya.
-  var VOICES = { 'es': 'es-MX-DaliaNeural', 'en': 'en-US-JennyNeural', 'pt': 'pt-BR-FranciscaNeural', 'fr': 'fr-FR-DeniseNeural', 'de': 'de-DE-KatjaNeural', 'it': 'it-IT-ElsaNeural', 'zh-Hans': 'zh-CN-XiaoxiaoNeural', 'ko': 'ko-KR-SunHiNeural' };
+  // Voces de Azure por idioma de destino: la primera de cada lista es la
+  // predeterminada. El criollo haitiano no tiene voz en el catálogo: en ese
+  // destino la lista muestra "automática" y Azure usa la suya.
+  var VOICE_OPTIONS = {
+    'es': [['es-MX-DaliaNeural', 'Dalia · mujer · México'], ['es-MX-JorgeNeural', 'Jorge · hombre · México'], ['es-US-PalomaNeural', 'Paloma · mujer · EE. UU.'], ['es-US-AlonsoNeural', 'Alonso · hombre · EE. UU.'], ['es-ES-ElviraNeural', 'Elvira · mujer · España']],
+    'en': [['en-US-JennyNeural', 'Jenny · mujer · EE. UU.'], ['en-US-GuyNeural', 'Guy · hombre · EE. UU.'], ['en-US-AvaNeural', 'Ava · mujer · EE. UU.'], ['en-US-AndrewNeural', 'Andrew · hombre · EE. UU.']],
+    'pt': [['pt-BR-FranciscaNeural', 'Francisca · mujer · Brasil'], ['pt-BR-AntonioNeural', 'Antonio · hombre · Brasil']],
+    'fr': [['fr-FR-DeniseNeural', 'Denise · mujer · Francia'], ['fr-FR-HenriNeural', 'Henri · hombre · Francia']],
+    'de': [['de-DE-KatjaNeural', 'Katja · mujer · Alemania'], ['de-DE-ConradNeural', 'Conrad · hombre · Alemania']],
+    'it': [['it-IT-ElsaNeural', 'Elsa · mujer · Italia'], ['it-IT-DiegoNeural', 'Diego · hombre · Italia']],
+    'zh-Hans': [['zh-CN-XiaoxiaoNeural', 'Xiaoxiao · mujer · China'], ['zh-CN-YunxiNeural', 'Yunxi · hombre · China']],
+    'ko': [['ko-KR-SunHiNeural', 'SunHi · mujer · Corea'], ['ko-KR-InJoonNeural', 'InJoon · hombre · Corea']]
+  };
+  var VOICES = {};
+  Object.keys(VOICE_OPTIONS).forEach(function (k) { VOICES[k] = VOICE_OPTIONS[k][0][0]; });
+  function fillVoices() {
+    var sel = document.getElementById('ai-voice');
+    var opts = VOICE_OPTIONS[dstSel.value] || [];
+    sel.innerHTML = '';
+    if (!opts.length) {
+      var o = document.createElement('option');
+      o.value = ''; o.textContent = 'Automática de Azure';
+      sel.appendChild(o);
+      return;
+    }
+    opts.forEach(function (pair) {
+      var o = document.createElement('option');
+      o.value = pair[0]; o.textContent = pair[1];
+      sel.appendChild(o);
+    });
+  }
   var ai = { rec: null, cfg: null, ctx: null, dest: null, nextTime: 0, refreshTimer: null, live: false };
 
   function langName(c) {
@@ -147,6 +194,7 @@
     });
   });
   srcSel.value = 'en'; dstSel.value = 'es';
+  fillVoices();
   var lastSrc = 'en', lastDst = 'es';
   srcSel.addEventListener('change', function () {
     if (srcSel.value === dstSel.value) dstSel.value = lastSrc;
@@ -155,6 +203,7 @@
   dstSel.addEventListener('change', function () {
     if (dstSel.value === srcSel.value) srcSel.value = lastDst;
     lastSrc = srcSel.value; lastDst = dstSel.value;
+    fillVoices();
   });
   document.getElementById('mode').addEventListener('change', function () {
     var esIa = this.value === 'ai';
@@ -236,7 +285,13 @@
       var cfg = SpeechSDK.SpeechTranslationConfig.fromAuthorizationToken(token, region);
       cfg.speechRecognitionLanguage = RECOG[src] || src;
       cfg.addTargetLanguage(dst);
-      if (VOICES[dst]) { try { cfg.voiceName = VOICES[dst]; } catch (e) {} }
+      var voiceOpts = VOICE_OPTIONS[dst] || [];
+      var chosenVoice = document.getElementById('ai-voice').value;
+      if (!voiceOpts.some(function (p) { return p[0] === chosenVoice; })) chosenVoice = VOICES[dst];
+      if (chosenVoice) { try { cfg.voiceName = chosenVoice; } catch (e) {} }
+      try { cfg.setProfanity(SpeechSDK.ProfanityOption[document.getElementById('ai-prof').value] || SpeechSDK.ProfanityOption.Masked); } catch (e) {}
+      var modelId = (document.getElementById('ai-model').value || '').trim();
+      if (modelId) { try { cfg.setProperty(SpeechSDK.PropertyId.SpeechServiceConnection_TranslationCategoryId, modelId); } catch (e) {} }
       ai.cfg = cfg;
       var deviceId = document.getElementById('mic').value;
       var audioCfg = SpeechSDK.AudioConfig.fromMicrophoneInput(deviceId || undefined);
@@ -279,6 +334,9 @@
     document.getElementById('btn-swap').hidden = false;
     document.getElementById('mode').disabled = true;
     srcSel.disabled = true; dstSel.disabled = true;
+    document.getElementById('ai-voice').disabled = true;
+    document.getElementById('ai-prof').disabled = true;
+    document.getElementById('ai-model').disabled = true;
   }
   function stopAi() {
     stopTokenRefresh();
@@ -303,6 +361,7 @@
       stopTokenRefresh();
       srcSel.value = nuevoSrc; dstSel.value = nuevoDst;
       lastSrc = nuevoSrc; lastDst = nuevoDst;
+      fillVoices();
       var data = await pedirTokenAzure();
       ai.nextTime = 0;
       await startRecognizer(data.token, data.region, nuevoSrc, nuevoDst);
