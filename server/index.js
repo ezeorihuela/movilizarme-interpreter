@@ -176,12 +176,7 @@ async function requireAdmin(req, res, next) {
 
 // ---------------- Correo de bienvenida ----------------
 async function sendWelcome(church) {
-  const user = await store.getSetting('smtp_user');
-  const pass = await store.getSetting('smtp_pass');
-  if (!user || !pass) throw new Error('Correo no configurado en el panel (ajustes SMTP).');
   if (!church.email) throw new Error('Esta iglesia no tiene correo registrado.');
-  const nodemailer = require('nodemailer');
-  const t = nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user, pass }, family: 4, connectionTimeout: 15000, greetingTimeout: 10000, socketTimeout: 25000 });
   const clave = fmtKey(church.key);
   const prueba = church.status === 'trial' && church.trial_ends
     ? `\nSu periodo de prueba vence el ${new Date(church.trial_ends).toLocaleDateString('es')}.` : '';
@@ -211,11 +206,74 @@ Guarden su clave en un lugar seguro y no la compartan fuera de su equipo.
 ¿Dudas? Escríbannos a ezequiel@movilizar.me
 
 MovilizarMe · Ayudando a las personas a encontrar su camino de regreso a Dios`;
+  // Vía principal: API de Gmail por HTTPS (Render gratis bloquea SMTP).
+  const refresh = await store.getSetting('gmail_refresh');
+  if (refresh) { await sendViaGmail(church, texto); return; }
+  // Respaldo: SMTP clásico (solo funciona donde no bloqueen los puertos).
+  const user = await store.getSetting('smtp_user');
+  const pass = await store.getSetting('smtp_pass');
+  if (!user || !pass) throw new Error('Correo no configurado: conecta tu cuenta de Google en el panel.');
+  const nodemailer = require('nodemailer');
+  const t = nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user, pass }, family: 4, connectionTimeout: 15000, greetingTimeout: 10000, socketTimeout: 25000 });
   await t.sendMail({
     from: `MovilizarMe <${user}>`, to: church.email,
     subject: 'Su clave de interpretación en vivo · MovilizarMe',
     text: texto,
   });
+}
+
+// ---------------- Gmail API (OAuth, envío por HTTPS) ----------------
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+const PUBLIC_URL = (process.env.PUBLIC_URL || 'https://panel.movilizar.me').replace(/\/$/, '');
+const GOOGLE_REDIRECT = PUBLIC_URL + '/api/admin/google/callback';
+
+async function googleTokenRequest(params) {
+  const r = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(params),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const err = new Error('Google: ' + (d.error_description || d.error || ('HTTP ' + r.status)));
+    err.code = d.error === 'invalid_grant' ? 'EGMAILAUTH' : 'EGMAIL';
+    throw err;
+  }
+  return d;
+}
+async function gmailAccessToken() {
+  const refresh = await store.getSetting('gmail_refresh');
+  if (!refresh) { const e = new Error('La cuenta de Google no está conectada.'); e.code = 'EGMAILAUTH'; throw e; }
+  const d = await googleTokenRequest({ client_id: GOOGLE_CLIENT_ID, client_secret: GOOGLE_CLIENT_SECRET, refresh_token: refresh, grant_type: 'refresh_token' });
+  return d.access_token;
+}
+function b64url(buf) { return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+async function sendViaGmail(church, texto) {
+  const from = (await store.getSetting('gmail_user')) || 'me';
+  const subject = 'Su clave de interpretación en vivo · MovilizarMe';
+  const mime = [
+    'From: MovilizarMe <' + from + '>',
+    'To: ' + church.email,
+    'Subject: =?UTF-8?B?' + Buffer.from(subject, 'utf8').toString('base64') + '?=',
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: base64',
+    '',
+    Buffer.from(texto, 'utf8').toString('base64'),
+  ].join('\r\n');
+  const access = await gmailAccessToken();
+  const r = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + access, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ raw: b64url(mime) }),
+  });
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    const err = new Error('Gmail: ' + ((d.error && d.error.message) || ('HTTP ' + r.status)));
+    err.code = (r.status === 401 || r.status === 403) ? 'EGMAILAUTH' : 'EGMAIL';
+    throw err;
+  }
 }
 
 // ---------------- App ----------------
@@ -358,13 +416,56 @@ app.post('/api/admin/churches/:id/welcome', requireAdmin, async (req, res) => {
   try { await sendWelcome(church); res.json({ ok: true }); }
   catch (e) {
     let m = e.message;
-    if (e.code === 'EAUTH') m = 'Gmail rechazó el usuario o la contraseña. Revisa que la contraseña sea una contraseña de aplicación vigente de esa cuenta.';
+    if (e.code === 'EGMAILAUTH') m = 'La autorización de Google venció o fue revocada. En el panel, vuelve a conectar tu cuenta de Google.';
+    else if (e.code === 'EAUTH') m = 'Gmail rechazó el usuario o la contraseña. Revisa que la contraseña sea una contraseña de aplicación vigente de esa cuenta.';
     else if (e.code === 'ETIMEDOUT' || e.code === 'ECONNECTION' || e.code === 'ESOCKET') m = 'No se pudo conectar con el servidor de Gmail (la conexión falló o tardó demasiado). Inténtalo de nuevo en un momento.';
     res.status(400).json({ error: m });
   }
 });
 app.get('/api/admin/settings', requireAdmin, async (req, res) => {
-  res.json({ smtpUser: (await store.getSetting('smtp_user')) || '', smtpConfigured: !!(await store.getSetting('smtp_pass')) });
+  res.json({
+    smtpUser: (await store.getSetting('smtp_user')) || '', smtpConfigured: !!(await store.getSetting('smtp_pass')),
+    gmailUser: (await store.getSetting('gmail_user')) || '', gmailConnected: !!(await store.getSetting('gmail_refresh')),
+    googleConfigured: !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET),
+  });
+});
+app.get('/api/admin/google/connect', requireAdmin, async (req, res) => {
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) return res.redirect('/admin?gmail=sin-credenciales');
+  const nonce = crypto.randomBytes(16).toString('hex');
+  await store.setSetting('google_oauth_nonce', nonce);
+  const q = new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID, redirect_uri: GOOGLE_REDIRECT, response_type: 'code',
+    scope: 'openid email https://www.googleapis.com/auth/gmail.send',
+    access_type: 'offline', prompt: 'consent', state: nonce,
+  });
+  res.redirect('https://accounts.google.com/o/oauth2/v2/auth?' + q.toString());
+});
+app.get('/api/admin/google/callback', async (req, res) => {
+  try {
+    const nonce = await store.getSetting('google_oauth_nonce');
+    if (!nonce || req.query.state !== nonce || !req.query.code) return res.redirect('/admin?gmail=error');
+    await store.setSetting('google_oauth_nonce', '');
+    const d = await googleTokenRequest({ client_id: GOOGLE_CLIENT_ID, client_secret: GOOGLE_CLIENT_SECRET, code: String(req.query.code), redirect_uri: GOOGLE_REDIRECT, grant_type: 'authorization_code' });
+    if (!d.refresh_token) return res.redirect('/admin?gmail=sin-token');
+    let email = '';
+    try {
+      const ui = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: { 'Authorization': 'Bearer ' + d.access_token } });
+      const uj = await ui.json().catch(() => ({}));
+      email = uj.email || '';
+    } catch (e) { /* el correo es opcional */ }
+    await store.setSetting('gmail_refresh', d.refresh_token);
+    await store.setSetting('gmail_user', email);
+    res.redirect('/admin?gmail=conectado');
+  } catch (e) {
+    res.redirect('/admin?gmail=error');
+  }
+});
+app.post('/api/admin/google/disconnect', requireAdmin, async (req, res) => {
+  const refresh = await store.getSetting('gmail_refresh');
+  if (refresh) { try { await fetch('https://oauth2.googleapis.com/revoke', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token: refresh }) }); } catch (e) { /* da igual */ } }
+  await store.setSetting('gmail_refresh', '');
+  await store.setSetting('gmail_user', '');
+  res.json({ ok: true });
 });
 app.post('/api/admin/settings', requireAdmin, async (req, res) => {
   const b = req.body || {};

@@ -115,8 +115,16 @@
     </div>
 
     <div class="card">
-      <h2>Correo de bienvenida (SMTP)</h2>
-      <p class="mini">Para que el panel envíe las claves por correo, guarda tu correo de envío y una contraseña de aplicación de Google (se crea en myaccount.google.com/apppasswords). Queda guardada solo en tu base de datos. Una vez guardado, los campos quedan bloqueados: para cambiarlos usa Editar, con doble confirmación.</p>
+      <h2>Correo de bienvenida</h2>
+      <p class="mini">El panel envía la clave de cada iglesia por correo. La vía que funciona en este servidor es tu cuenta de Google conectada (Gmail por HTTPS), porque el plan gratuito del servidor bloquea el correo SMTP tradicional.</p>
+      <div class="btnrow">
+        <a class="btn" id="gmail-connect" href="/api/admin/google/connect">Conectar mi cuenta de Google</a>
+        <button class="btn secondary" id="gmail-disconnect" hidden>Desconectar</button>
+      </div>
+      <p class="state" id="gmail-state"></p>
+      <hr style="border:none;border-top:1px solid #eee;margin:1.2rem 0">
+      <h3 style="margin:.2rem 0 .4rem">Respaldo por SMTP</h3>
+      <p class="mini">Alternativa clásica: correo de envío y una contraseña de aplicación de Google (se crea en myaccount.google.com/apppasswords). Queda guardada solo en tu base de datos. Una vez guardado, los campos quedan bloqueados: para cambiarlos usa Editar, con doble confirmación. En este servidor el SMTP está bloqueado, así que este respaldo solo sirve si el servidor se mueve a un plan sin bloqueo.</p>
       <div class="row cols2">
         <label>Correo de envío<input id="s-user" type="email" placeholder="ezequiel@movilizar.me"></label>
         <label>Contraseña de aplicación<input id="s-pass" type="password" placeholder="••••••••••••••••"></label>
@@ -240,6 +248,27 @@
   });
   $('logout').addEventListener('click', function () { api('/api/admin/logout', { method: 'POST', body: '{}' }).then(function () { location.reload(); }); });
 
+  function gmailState(kind, text) { var el = $('gmail-state'); el.className = 'state ' + kind; el.textContent = text; }
+  function showGmail(s) {
+    if (!s.googleConfigured) {
+      gmailState('err', 'Faltan las credenciales de Google en el servidor. Chipitín las está configurando; vuelve en unos minutos.');
+      $('gmail-connect').hidden = true; $('gmail-disconnect').hidden = true; return;
+    }
+    if (s.gmailConnected) {
+      gmailState('ok', 'Cuenta conectada: ' + (s.gmailUser || '') + '. Los correos de bienvenida salen desde tu Gmail.');
+      $('gmail-connect').hidden = true; $('gmail-disconnect').hidden = false;
+    } else {
+      gmailState('note', 'Tu cuenta de Google aún no está conectada. Sin conexión no salen los correos de bienvenida.');
+      $('gmail-connect').hidden = false; $('gmail-disconnect').hidden = true;
+    }
+  }
+  $('gmail-disconnect').addEventListener('click', function () {
+    if (!confirm('¿Desconectar tu cuenta de Google? Los correos de bienvenida dejarán de enviarse.')) return;
+    api('/api/admin/google/disconnect', { method: 'POST', body: '{}' })
+      .then(function () { return api('/api/admin/settings'); })
+      .then(function (s) { showGmail(s); showSmtp(s); });
+  });
+
   function start() {
     api('/api/admin/state').then(function (st) {
       if (!st.authed) {
@@ -261,7 +290,12 @@
         };
       } else {
         $('dash').hidden = false;
-        api('/api/admin/settings').then(showSmtp);
+        api('/api/admin/settings').then(function (s) {
+          showSmtp(s); showGmail(s);
+          var g = new URLSearchParams(location.search).get('gmail');
+          if (g === 'error' || g === 'sin-token') gmailState('err', 'Google no completó la conexión. Inténtalo de nuevo.');
+          if (g === 'sin-credenciales') gmailState('err', 'Faltan las credenciales de Google en el servidor. Avísale a Chipitín.');
+        });
         load();
       }
     });
