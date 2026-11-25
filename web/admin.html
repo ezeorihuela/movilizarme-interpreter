@@ -178,9 +178,17 @@
     }).catch(function (err) { $('create-msg').textContent = err.message; });
   });
 
+  function showSmtp(s) {
+    $('s-user').value = s.smtpUser || '';
+    $('smtp-state').textContent = !s.smtpUser ? 'Falta el correo de envío.' :
+      (s.smtpConfigured ? 'Guardado: ' + s.smtpUser + ' · contraseña de aplicación guardada.' : 'Guardado: ' + s.smtpUser + ' · FALTA la contraseña de aplicación.');
+  }
   $('save-smtp').addEventListener('click', function () {
+    $('smtp-state').textContent = 'Guardando…';
     api('/api/admin/settings', { method: 'POST', body: JSON.stringify({ smtpUser: $('s-user').value.trim(), smtpPass: $('s-pass').value || undefined }) })
-      .then(function () { $('smtp-state').textContent = 'Correo guardado.'; $('s-pass').value = ''; });
+      .then(function () { $('s-pass').value = ''; return api('/api/admin/settings'); })
+      .then(showSmtp)
+      .catch(function (err) { $('smtp-state').textContent = 'No se guardó: ' + err.message; });
   });
   $('logout').addEventListener('click', function () { api('/api/admin/logout', { method: 'POST', body: '{}' }).then(function () { location.reload(); }); });
 
@@ -205,10 +213,7 @@
         };
       } else {
         $('dash').hidden = false;
-        api('/api/admin/settings').then(function (s) {
-          $('s-user').value = s.smtpUser || '';
-          $('smtp-state').textContent = s.smtpConfigured ? 'Contraseña de aplicación guardada.' : 'Falta la contraseña de aplicación.';
-        });
+        api('/api/admin/settings').then(showSmtp);
         load();
       }
     });

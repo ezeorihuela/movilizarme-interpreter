@@ -181,7 +181,7 @@ async function sendWelcome(church) {
   if (!user || !pass) throw new Error('Correo no configurado en el panel (ajustes SMTP).');
   if (!church.email) throw new Error('Esta iglesia no tiene correo registrado.');
   const nodemailer = require('nodemailer');
-  const t = nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user, pass } });
+  const t = nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user, pass }, family: 4, connectionTimeout: 15000, greetingTimeout: 10000, socketTimeout: 25000 });
   const clave = fmtKey(church.key);
   const prueba = church.status === 'trial' && church.trial_ends
     ? `\nSu periodo de prueba vence el ${new Date(church.trial_ends).toLocaleDateString('es')}.` : '';
@@ -261,7 +261,8 @@ app.post('/api/webhook', express.raw({ type: '*/*' }), async (req, res) => {
 
 app.use(express.json());
 
-app.get('/', async (req, res) => {
+app.get('/', (req, res) => res.redirect('/admin'));
+app.get('/health', async (req, res) => {
   res.json({ ok: true, service: 'movilizarme-interpreter', version: 2, livekit: LIVEKIT_URL ? 'configurado' : 'sin-configurar', datos: pool ? 'base-de-datos' : 'memoria' });
 });
 
@@ -355,7 +356,12 @@ app.post('/api/admin/churches/:id/welcome', requireAdmin, async (req, res) => {
   const church = await store.getChurch(req.params.id);
   if (!church) return res.status(404).json({ error: 'Iglesia no encontrada.' });
   try { await sendWelcome(church); res.json({ ok: true }); }
-  catch (e) { res.status(400).json({ error: e.message }); }
+  catch (e) {
+    let m = e.message;
+    if (e.code === 'EAUTH') m = 'Gmail rechazó el usuario o la contraseña. Revisa que la contraseña sea una contraseña de aplicación vigente de esa cuenta.';
+    else if (e.code === 'ETIMEDOUT' || e.code === 'ECONNECTION' || e.code === 'ESOCKET') m = 'No se pudo conectar con el servidor de Gmail (la conexión falló o tardó demasiado). Inténtalo de nuevo en un momento.';
+    res.status(400).json({ error: m });
+  }
 });
 app.get('/api/admin/settings', requireAdmin, async (req, res) => {
   res.json({ smtpUser: (await store.getSetting('smtp_user')) || '', smtpConfigured: !!(await store.getSetting('smtp_pass')) });
