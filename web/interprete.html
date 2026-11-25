@@ -190,13 +190,28 @@
     node.start(ai.nextTime);
     ai.nextTime += audioBuf.duration;
   }
-  function showAiText(e, dst) {
+  var lastCapSent = 0;
+  function publishCaption(isFinal) {
+    if (!room || !room.localParticipant) return;
+    var o = document.getElementById('ai-orig').textContent || '';
+    var tr = document.getElementById('ai-tran').textContent || '';
+    if (!o && !tr) return;
+    var now = Date.now();
+    if (!isFinal && now - lastCapSent < 700) return;
+    lastCapSent = now;
+    try {
+      var payload = JSON.stringify({ t: 'cap', o: o, tr: tr, f: isFinal ? 1 : 0 });
+      room.localParticipant.publishData(new TextEncoder().encode(payload), { reliable: true, topic: 'captions' });
+    } catch (err) {}
+  }
+  function showAiText(e, dst, isFinal) {
     if (!e.result) return;
     if (e.result.text) document.getElementById('ai-orig').textContent = e.result.text;
     if (e.result.translations) {
       var t = e.result.translations.get(dst);
       if (t) document.getElementById('ai-tran').textContent = t;
     }
+    publishCaption(isFinal);
   }
   function startTokenRefresh() {
     stopTokenRefresh();
@@ -222,8 +237,8 @@
       var audioCfg = SpeechSDK.AudioConfig.fromMicrophoneInput(deviceId || undefined);
       var rec = new SpeechSDK.TranslationRecognizer(cfg, audioCfg);
       ai.rec = rec;
-      rec.recognizing = function (s, e) { showAiText(e, dst); };
-      rec.recognized = function (s, e) { showAiText(e, dst); };
+      rec.recognizing = function (s, e) { showAiText(e, dst, false); };
+      rec.recognized = function (s, e) { showAiText(e, dst, true); };
       rec.synthesizing = function (s, e) { if (e.result) feedPcm(e.result.audio); };
       rec.canceled = function (s, e) {
         if (e.reason === SpeechSDK.CancellationReason.Error) {

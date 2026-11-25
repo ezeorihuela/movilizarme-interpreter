@@ -7,6 +7,13 @@
 <link rel="stylesheet" href="app.css">
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
+<style>
+  #captions { margin-top: 1.4rem; max-width: 34rem; margin-left: auto; margin-right: auto; }
+  #cap-tran { font-size: 1.45rem; line-height: 1.45; font-weight: 600; margin: 0 0 .4rem; }
+  #cap-tran.interim { opacity: .55; }
+  #cap-orig { font-size: 1.05rem; line-height: 1.4; opacity: .65; margin: 0; }
+  #cap-orig.interim { opacity: .4; }
+</style>
 </head>
 <body>
 <main class="wrap center">
@@ -22,6 +29,10 @@
   <p class="status" id="status" role="status"></p>
   <div id="step-live" hidden>
     <p><span class="pulse on"></span><strong id="t-live">Estás escuchando en vivo</strong></p>
+    <div id="captions" hidden aria-live="polite">
+      <p id="cap-tran"></p>
+      <p id="cap-orig"></p>
+    </div>
     <p><button class="btn sec" id="btn-stop">Dejar de escuchar</button></p>
   </div>
   <p class="status" id="t-tip">Usa audífonos para escuchar mejor. Puedes bloquear tu teléfono; el audio sigue.</p>
@@ -86,6 +97,20 @@
           setStatus('');
         }
       });
+      room.on('dataReceived', function (payload) {
+        try {
+          var d = JSON.parse(new TextDecoder().decode(payload));
+          if (!d || d.t !== 'cap') return;
+          var box = document.getElementById('captions');
+          var trEl = document.getElementById('cap-tran');
+          var orEl = document.getElementById('cap-orig');
+          if (d.tr) trEl.textContent = d.tr;
+          if (d.o) orEl.textContent = d.o;
+          trEl.className = d.f ? '' : 'interim';
+          orEl.className = d.f ? '' : 'interim';
+          box.hidden = false;
+        } catch (err) {}
+      });
       room.on('disconnected', function () { stop(); });
       await room.connect(data.url, data.token);
       setStatus(msg.waiting);
@@ -99,6 +124,7 @@
     if (room) { room.disconnect(); room = null; }
     document.getElementById('step-code').hidden = false;
     document.getElementById('step-live').hidden = true;
+    document.getElementById('captions').hidden = true;
     document.getElementById('btn-listen').disabled = false;
   }
   document.getElementById('btn-stop').addEventListener('click', stop);
