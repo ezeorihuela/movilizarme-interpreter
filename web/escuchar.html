@@ -18,6 +18,11 @@
   body.live h1 { font-size: 1.45rem; margin: .3rem 0; }
   body.live .brand { font-size: .95rem; margin-bottom: .1rem; }
   body.live #t-intro, body.live #t-tip { display: none; }
+  /* Botón redondo de play/stop: lo más intuitivo para cualquier edad. */
+  .playbtn { width: 6.4rem; height: 6.4rem; border-radius: 50%; border: 0; background: var(--verde); color: #fff; font-size: 2.5rem; cursor: pointer; line-height: 1; padding-left: .45rem; box-shadow: 0 4px 16px rgba(23,97,95,.35); }
+  .playbtn[disabled] { opacity: .5; }
+  .playbtn.stop { background: #fff; color: var(--morado); box-shadow: inset 0 0 0 .18rem var(--morado); padding-left: 0; font-size: 2.1rem; }
+  .playlbl { font-weight: 700; color: var(--morado-oscuro); font-size: 1.15rem; margin: .1rem 0 0; }
 </style>
 </head>
 <body>
@@ -28,7 +33,8 @@
 
   <div id="step-code">
     <p><input type="text" id="room" maxlength="6" autocomplete="off" autocapitalize="characters" aria-label="Código de sala"></p>
-    <p><button class="btn big-listen" id="btn-listen">Escuchar</button></p>
+    <p><button class="playbtn" id="btn-listen" type="button" aria-label="Escuchar">▶</button></p>
+    <p class="playlbl" id="t-listen-lbl">Escuchar</p>
   </div>
 
   <p class="status" id="status" role="status"></p>
@@ -39,7 +45,8 @@
       <p id="cap-tran"></p>
       <p id="cap-orig"></p>
     </div>
-    <p><button class="btn sec" id="btn-stop">Dejar de escuchar</button></p>
+    <p><button class="playbtn stop" id="btn-stop" type="button" aria-label="Detener">■</button></p>
+    <p class="playlbl" id="t-stop-lbl">Detener</p>
   </div>
   <p class="status" id="t-tip">Usa audífonos para escuchar mejor. Puedes bloquear tu teléfono; el audio sigue.</p>
 </main>
@@ -52,9 +59,9 @@
     var T = {
       't-title': 'Listen to the interpretation',
       't-intro': 'Type the room code shown on the screen and tap Listen.',
-      'btn-listen': 'Listen',
+      't-listen-lbl': 'Listen',
       't-live': 'You are listening live',
-      'btn-stop': 'Stop listening',
+      't-stop-lbl': 'Stop',
       't-tip': 'Headphones work best. You can lock your phone; the audio keeps playing.'
     };
     Object.keys(T).forEach(function (id) {
@@ -75,6 +82,21 @@
   if (params.get('room')) input.value = params.get('room').toUpperCase();
 
   var room = null;
+  var isLive = false;
+  // ¿Dos textos son casi el mismo? Azure a veces cierra la misma frase dos
+  // veces con una palabra distinta; sin este filtro la anterior y la nueva
+  // se veían duplicadas en pantalla.
+  function parecido(a, b) {
+    function norm(s) { return (s || '').toLowerCase().replace(/[^a-záéíóúñü0-9 ]/gi, '').replace(/\s+/g, ' ').trim(); }
+    var x = norm(a), y = norm(b);
+    if (!x || !y) return false;
+    if (x === y || x.indexOf(y) >= 0 || y.indexOf(x) >= 0) return true;
+    var xs = x.split(' '), ys = y.split(' ');
+    var setY = {};
+    ys.forEach(function (w) { setY[w] = 1; });
+    var common = xs.filter(function (w) { return setY[w]; }).length;
+    return common / Math.max(xs.length, ys.length) >= 0.75;
+  }
   function setStatus(text, isError) {
     status.textContent = text || '';
     status.className = 'status' + (isError ? ' error' : '');
@@ -102,6 +124,7 @@
       room.on('trackSubscribed', function (track) {
         if (track.kind === 'audio') {
           track.attach();
+          isLive = true;
           document.getElementById('step-code').hidden = true;
           document.getElementById('step-live').hidden = false;
           document.body.classList.add('live');
@@ -115,7 +138,7 @@
           var box = document.getElementById('captions');
           var trEl = document.getElementById('cap-tran');
           var orEl = document.getElementById('cap-orig');
-          if (d.f && d.tr && trEl.textContent && d.tr !== trEl.textContent) {
+          if (d.f && d.tr && trEl.textContent && d.tr !== trEl.textContent && !parecido(trEl.textContent, d.tr)) {
             document.getElementById('cap-prev').textContent = trEl.textContent;
           }
           if (d.tr) trEl.textContent = d.tr;
@@ -127,7 +150,9 @@
       });
       room.on('disconnected', function () { stop(); });
       await room.connect(data.url, data.token);
-      setStatus(msg.waiting);
+      // Si el intérprete ya estaba transmitiendo, trackSubscribed llegó
+      // durante la conexión y el aviso de espera ya no aplica.
+      if (!isLive) setStatus(msg.waiting);
     } catch (e) {
       setStatus(e.message === 'room' ? msg.badRoom : msg.failed, true);
       btn.disabled = false;
@@ -135,6 +160,7 @@
   });
 
   function stop() {
+    isLive = false;
     if (room) { room.disconnect(); room = null; }
     document.getElementById('step-code').hidden = false;
     document.getElementById('step-live').hidden = true;

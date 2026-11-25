@@ -9,6 +9,31 @@
 <script src="qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/microsoft-cognitiveservices-speech-sdk@1/distrib/browser/microsoft.cognitiveservices.speech.sdk.bundle-min.js"></script>
+<style>
+  .card-label { margin: 0; text-transform: uppercase; letter-spacing: .18em; font-size: .8rem; color: var(--suave); }
+  #room-event { font-family: "Fira Sans", sans-serif; font-size: 1.8rem; font-weight: 700; color: var(--morado-oscuro); margin: .35rem 0 0; line-height: 1.2; }
+  #room-church { font-size: 1.2rem; font-weight: 600; color: var(--verde); margin: .2rem 0 .7rem; }
+  .btnrow { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: center; }
+  .btnrow .btn { margin: 0; }
+  .card { background: #fff; border: 1px solid var(--borde); border-radius: .9rem; padding: 1.3rem 1.4rem; margin: 1.1rem 0; box-shadow: 0 1px 4px rgba(52,43,77,.06); }
+  .card-title { margin: .1rem 0 1rem; font-size: 1.3rem; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+  .field { margin-bottom: 1rem; }
+  .field label { display: block; font-weight: 600; margin-bottom: .35rem; color: var(--morado-oscuro); }
+  .field select { width: 100%; font-size: 1.05rem; padding: .65rem; }
+  .langrow { display: flex; gap: .6rem; align-items: flex-end; }
+  .langrow .grow { flex: 1; }
+  .swapbtn { flex: 0 0 auto; width: 3.1rem; height: 3.1rem; border-radius: 50%; border: .13rem solid var(--morado); background: #fff; color: var(--morado); font-size: 1.4rem; cursor: pointer; margin-bottom: 1.1rem; }
+  .swapbtn:hover { background: var(--morado-suave); }
+  .actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .4rem; }
+  .actions .btn { margin: 0; }
+  .btn.big { font-size: 1.25rem; padding: .95rem 2.2rem; }
+  .btn.danger { color: #a11; box-shadow: inset 0 0 0 .13rem #a11; }
+  .alert { background: #fdf3e3; border: 1px solid #e5c07b; color: #7a5410; border-radius: .6rem; padding: .85rem 1rem; margin: .4rem 0 .9rem; cursor: pointer; font-size: 1.05rem; }
+  #ai-text { background: var(--morado-suave); border-radius: .6rem; padding: .7rem 1rem; margin-top: .6rem; }
+  .capline { margin: .4rem 0; font-size: 1.08rem; }
+</style>
 </head>
 <body>
 <main class="wrap">
@@ -38,75 +63,81 @@
   </div>
 
   <div id="step-room" hidden>
-    <div class="panel center">
-      <p style="margin:0">Código de sala</p>
+    <section class="panel center">
+      <p class="card-label">Código de sala</p>
       <p class="code" id="room-code">------</p>
-      <p class="status" id="church-name" style="margin:.2rem 0 .8rem"></p>
-      <p>
-        <a class="btn sec" id="link-projector" href="#" target="_blank" rel="noopener">Abrir pantalla de proyector</a>
-        <a class="btn sec" id="link-listen" href="#" target="_blank" rel="noopener">Abrir página del oyente</a>
-        <button class="btn sec" id="btn-img" type="button">Descargar imagen de la sala</button>
-      </p>
-    </div>
-    <p>
-      <label for="mic">Micrófono o fuente de audio</label><br>
-      <select id="mic"></select>
-    </p>
-    <p>
-      <label for="mode">Modo de interpretación</label><br>
-      <select id="mode">
-        <option value="human">Intérprete humano</option>
-        <option value="ai">Interpretación por IA</option>
-      </select>
-    </p>
-    <div id="ai-box" hidden>
-      <p>
-        <label for="ai-src">Se habla (idioma de origen)</label><br>
-        <select id="ai-src"></select>
-      </p>
-      <p>
-        <label for="ai-dst">La IA interpreta a (idioma de destino)</label><br>
-        <select id="ai-dst"></select>
-      </p>
-      <p>
-        <label for="ai-voice">Voz de la IA</label><br>
-        <select id="ai-voice"></select>
-      </p>
-      <p>
-        <label for="ai-prof">Filtro de palabras</label><br>
-        <select id="ai-prof">
-          <option value="Masked" selected>Activado: oculta la palabra con asteriscos</option>
-          <option value="Removed">Activado: quita la palabra</option>
-          <option value="Raw">Desactivado</option>
-        </select>
-      </p>
-      <p>
-        <label for="ai-model">Modelo personalizado de traducción (opcional)</label><br>
-        <input id="ai-model" type="text" autocomplete="off" placeholder="ID del modelo (Azure Custom Translator)" style="max-width:430px">
-        <br><span class="status">Por sesión. Vacío = modelo general de Azure.</span>
-      </p>
-      <p class="status" id="ai-state" role="status"></p>
-      <div id="ai-text" hidden>
-        <p style="margin:.5rem 0"><strong>Original:</strong> <span id="ai-orig"></span></p>
-        <p style="margin:.5rem 0"><strong>Traducción:</strong> <span id="ai-tran"></span></p>
+      <p id="room-event" hidden></p>
+      <p id="room-church"></p>
+      <div class="btnrow">
+        <a class="btn sec" id="link-projector" href="#" target="_blank" rel="noopener">Pantalla de proyector</a>
+        <a class="btn sec" id="link-listen" href="#" target="_blank" rel="noopener">Página del oyente</a>
+        <button class="btn sec" id="btn-img" type="button">Imagen de la sala</button>
       </div>
-      <p><button class="btn sec" id="btn-swap" type="button" hidden>Cambiar dirección</button></p>
-      <p><button class="btn sec" id="btn-pause" type="button" hidden>Pausar interpretación: que se oiga la voz original</button></p>
-      <p><button class="btn" id="btn-audio" type="button" hidden>Activar el sonido de la IA</button></p>
-    </div>
-    <p>
-      <button class="btn" id="btn-start">Empezar a interpretar</button>
-      <button class="btn sec" id="btn-end" hidden>Terminar</button>
-      <button class="btn sec change-key" type="button">Cambiar clave</button>
-    </p>
-    <p class="status" id="status" role="status"></p>
-    <p class="status" id="listeners"></p>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title">Interpretación</h2>
+      <div class="grid2">
+        <div class="field">
+          <label for="mic">Micrófono o fuente de audio</label>
+          <select id="mic"></select>
+        </div>
+        <div class="field">
+          <label for="mode">Modo de interpretación</label>
+          <select id="mode">
+            <option value="human">Intérprete humano</option>
+            <option value="ai">Interpretación por IA</option>
+          </select>
+        </div>
+      </div>
+      <div id="ai-box" hidden>
+        <div class="langrow">
+          <div class="field grow">
+            <label for="ai-src">Se habla</label>
+            <select id="ai-src"></select>
+          </div>
+          <button class="swapbtn" id="btn-swap" type="button" title="Invertir idiomas" aria-label="Invertir idiomas">⇄</button>
+          <div class="field grow">
+            <label for="ai-dst">Se interpreta a</label>
+            <select id="ai-dst"></select>
+          </div>
+        </div>
+        <div class="grid2">
+          <div class="field">
+            <label for="ai-voice">Voz de la IA</label>
+            <select id="ai-voice"></select>
+          </div>
+          <div class="field">
+            <label for="ai-prof">Filtro de palabras</label>
+            <select id="ai-prof">
+              <option value="Masked" selected>Activado: oculta la palabra con asteriscos</option>
+              <option value="Removed">Activado: quita la palabra</option>
+              <option value="Raw">Desactivado</option>
+            </select>
+          </div>
+        </div>
+        <div class="alert" id="ai-alert" hidden>El navegador bloqueó el sonido de la IA. <strong>Toca aquí para activarlo.</strong></div>
+        <p class="status" id="ai-state" role="status"></p>
+        <div id="ai-text" hidden>
+          <p class="capline"><strong>Original:</strong> <span id="ai-orig"></span></p>
+          <p class="capline"><strong>Traducción:</strong> <span id="ai-tran"></span></p>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn big" id="btn-start">Empezar a interpretar</button>
+        <button class="btn sec" id="btn-pause" type="button" hidden>Pausar: voz original</button>
+        <button class="btn sec danger" id="btn-end" hidden>Terminar</button>
+      </div>
+      <p class="status" id="status" role="status"></p>
+      <p class="status" id="listeners"></p>
+      <p class="center" style="margin-bottom:0"><button class="btn sec change-key" type="button">Cambiar clave</button></p>
+    </section>
   </div>
 </main>
 <script>
 (function () {
   var status = document.getElementById('status');
-  var room = null, code = null, roomTitle = '';
+  var room = null, code = null, roomTitle = '', churchName = '';
   var churchKey = localStorage.getItem('mm-church-key') || '';
 
   function setStatus(t, isError) {
@@ -293,8 +324,6 @@
       if (!voiceOpts.some(function (p) { return p[0] === chosenVoice; })) chosenVoice = VOICES[dst];
       if (chosenVoice) { try { cfg.voiceName = chosenVoice; } catch (e) {} }
       try { cfg.setProfanity(SpeechSDK.ProfanityOption[document.getElementById('ai-prof').value] || SpeechSDK.ProfanityOption.Masked); } catch (e) {}
-      var modelId = (document.getElementById('ai-model').value || '').trim();
-      if (modelId) { try { cfg.setProperty(SpeechSDK.PropertyId.SpeechServiceConnection_TranslationCategoryId, modelId); } catch (e) {} }
       ai.cfg = cfg;
       var deviceId = document.getElementById('mic').value;
       var audioCfg = SpeechSDK.AudioConfig.fromMicrophoneInput(deviceId || undefined);
@@ -358,18 +387,15 @@
     ai.live = true;
     document.getElementById('btn-pause').hidden = false;
     if (ai.ctx.state !== 'running') {
-      document.getElementById('btn-audio').hidden = false;
-      setAiState('La IA está traduciendo el texto, pero el navegador tiene el sonido bloqueado. Toca «Activar el sonido de la IA».', true);
+      document.getElementById('ai-alert').hidden = false;
     } else if (!ai.micPub) {
       setAiState('IA activa, pero la pausa con voz original no está disponible: no se pudo abrir el micrófono por segunda vez.');
     }
     document.getElementById('ai-text').hidden = false;
-    document.getElementById('btn-swap').hidden = false;
     document.getElementById('mode').disabled = true;
     srcSel.disabled = true; dstSel.disabled = true;
     document.getElementById('ai-voice').disabled = true;
     document.getElementById('ai-prof').disabled = true;
-    document.getElementById('ai-model').disabled = true;
   }
   function stopAi() {
     stopTokenRefresh();
@@ -383,7 +409,13 @@
   // sale del mismo destino WebAudio y no se toca; solo se reinicia el
   // reconocedor de Azure con los idiomas intercambiados.
   document.getElementById('btn-swap').addEventListener('click', async function () {
-    if (!ai.live || !ai.rec) return;
+    if (!ai.live || !ai.rec) {
+      // Antes de empezar, ⇄ solo intercambia los dos idiomas elegidos.
+      var t = srcSel.value; srcSel.value = dstSel.value; dstSel.value = t;
+      lastSrc = srcSel.value; lastDst = dstSel.value;
+      fillVoices();
+      return;
+    }
     var btn = this; btn.disabled = true;
     var nuevoSrc = dstSel.value, nuevoDst = srcSel.value;
     setAiState('Cambiando la dirección…');
@@ -406,7 +438,7 @@
 
   // Si el navegador dejó el contexto de audio suspendido, este botón lo
   // despierta con un toque real (la única forma segura en iPad).
-  document.getElementById('btn-audio').addEventListener('click', async function () {
+  document.getElementById('ai-alert').addEventListener('click', async function () {
     if (!ai.ctx) return;
     try { await ai.ctx.resume(); } catch (e) {}
     if (ai.ctx.state === 'running') {
@@ -435,7 +467,7 @@
         await ai.micPub.mute();
         await ai.aiPub.unmute();
         ai.paused = false;
-        btn.textContent = 'Pausar interpretación: que se oiga la voz original';
+        btn.textContent = 'Pausar: voz original';
         setAiState('Interpretación reanudada.');
       }
     } catch (e) {
@@ -478,8 +510,11 @@
       code = data.room;
       roomTitle = data.title || '';
       document.getElementById('room-code').textContent = code;
-      document.getElementById('church-name').textContent = (data.title ? (data.title + ' · ') : '') + (data.church ? ('Iglesia: ' + data.church) : '');
-      document.getElementById('link-projector').href = 'proyector.html?room=' + code + (roomTitle ? ('&title=' + encodeURIComponent(roomTitle)) : '');
+      churchName = data.church || '';
+      var evEl = document.getElementById('room-event');
+      if (roomTitle) { evEl.textContent = roomTitle; evEl.hidden = false; } else { evEl.hidden = true; }
+      document.getElementById('room-church').textContent = churchName;
+      document.getElementById('link-projector').href = 'proyector.html?room=' + code + (roomTitle ? ('&title=' + encodeURIComponent(roomTitle)) : '') + (churchName ? ('&church=' + encodeURIComponent(churchName)) : '');
       document.getElementById('link-listen').href = window.MM.listenBase + '?room=' + code;
       showStep('step-room');
       // Lista de micrófonos (pide permiso una vez). Si este equipo no
@@ -614,35 +649,46 @@
     }
     function finish() {
       x.textAlign = 'left'; x.fillStyle = '#fff';
+      // El evento y la iglesia van primero y en grande; el resto baja
+      // según el espacio que ocupen (cursor yy).
+      var yy = 452;
       if (roomTitle) {
-        var fsT = 54;
-        x.font = '600 ' + fsT + 'px ' + F;
-        while (x.measureText(roomTitle).width > 1100 && fsT > 30) { fsT -= 4; x.font = '600 ' + fsT + 'px ' + F; }
+        var fsT = 96;
+        x.font = '700 ' + fsT + 'px ' + F;
+        while (x.measureText(roomTitle).width > 1100 && fsT > 40) { fsT -= 6; x.font = '700 ' + fsT + 'px ' + F; }
         x.fillStyle = '#8fd0cc';
-        x.fillText(roomTitle, 120, 392);
+        x.fillText(roomTitle, 120, yy);
         x.fillStyle = '#fff';
+        yy += 66;
       }
-      x.font = '700 88px ' + F;
-      x.fillText('Interpretación en vivo', 120, 470);
-      x.fillText('Live Interpretation', 120, 575);
+      if (churchName) {
+        x.font = '600 44px ' + F; x.fillStyle = '#e6ddf5';
+        x.fillText(churchName, 120, yy);
+        x.fillStyle = '#fff';
+        yy += 78;
+      }
+      if (!roomTitle && !churchName) yy = 470;
+      x.font = '700 74px ' + F;
+      x.fillText('Interpretación en vivo', 120, yy); yy += 74;
+      x.fillText('Live Interpretation', 120, yy); yy += 72;
       x.font = '400 40px ' + F; x.fillStyle = '#e6ddf5';
-      x.fillText('Escanea el código con tu teléfono', 120, 660);
-      x.fillText('y escucha en tu idioma.', 120, 710);
+      x.fillText('Escanea el código con tu teléfono', 120, yy); yy += 44;
+      x.fillText('y escucha en tu idioma.', 120, yy); yy += 44;
       x.font = '400 34px ' + F; x.fillStyle = '#bdb4d4';
-      x.fillText('Scan the code with your phone and listen in your language.', 120, 762);
+      x.fillText('Scan the code with your phone and listen in your language.', 120, yy); yy += 56;
       x.font = '600 30px ' + F; x.fillStyle = '#8fd0cc';
-      x.fillText('C Ó D I G O   D E   L A   S A L A   ·   R O O M   C O D E', 120, 848);
+      x.fillText('C Ó D I G O   D E   L A   S A L A   ·   R O O M   C O D E', 120, yy);
       x.beginPath();
-      var pw = 470, ph = 110, px = 120, py = 878;
-      x.roundRect(px, py, pw, ph, 55);
+      var pw = 470, ph = 96, px = 120, py = yy + 20;
+      x.roundRect(px, py, pw, ph, 48);
       x.fillStyle = 'rgba(23,97,95,.35)'; x.fill();
       x.lineWidth = 4; x.strokeStyle = '#2a9d8f'; x.stroke();
-      x.font = '700 62px ' + F; x.fillStyle = '#fff'; x.textAlign = 'center';
-      x.fillText(code.split('').join(' '), px + pw / 2, py + 74);
+      x.font = '700 58px ' + F; x.fillStyle = '#fff'; x.textAlign = 'center';
+      x.fillText(code.split('').join(' '), px + pw / 2, py + 64);
       x.textAlign = 'left'; x.font = '400 36px ' + F; x.fillStyle = '#e6ddf5';
-      x.fillText('o entra a movilizar.me/escuchar', 630, 922);
+      x.fillText('o entra a movilizar.me/escuchar', 630, py + 40);
       x.font = '400 30px ' + F; x.fillStyle = '#bdb4d4';
-      x.fillText('or go to movilizar.me/escuchar', 630, 966);
+      x.fillText('or go to movilizar.me/escuchar', 630, py + 80);
       var q = qrcode(0, 'M'); q.addData(url); q.make();
       var n = q.getModuleCount(), box = 488, bx = 1300, by = 420, pad = 36;
       x.beginPath(); x.roundRect(bx - pad, by - pad, box + pad * 2, box + pad * 2, 28);
@@ -651,8 +697,8 @@
       var cell = box / n; x.fillStyle = '#000';
       for (var r = 0; r < n; r++) for (var c = 0; c < n; c++)
         if (q.isDark(r, c)) x.fillRect(bx + c * cell, by + r * cell, Math.ceil(cell), Math.ceil(cell));
-      x.font = 'italic 400 30px ' + F; x.fillStyle = '#bdb4d4'; x.textAlign = 'center';
-      x.fillText('Un servicio de MovilizarMe para las iglesias · A MovilizarMe service for churches', W / 2, 1030);
+      x.font = 'italic 400 28px ' + F; x.fillStyle = '#bdb4d4'; x.textAlign = 'center';
+      x.fillText('Un servicio de MovilizarMe para las iglesias · A MovilizarMe service for churches', W / 2, 1058);
       deliver();
     }
     x.textAlign = 'center';

@@ -4,6 +4,7 @@
   --verde:#17615f; --texto:#453e57; --suave:#555064; --borde:#ddd6ea;
 }
 *{box-sizing:border-box}
+[hidden]{display:none !important}
 body{
   margin:0; font-family:"Open Sans",system-ui,Arial,sans-serif; color:var(--texto);
   background:#fff; line-height:1.55;

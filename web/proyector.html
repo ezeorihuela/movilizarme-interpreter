@@ -8,7 +8,8 @@
 <script src="config.js"></script>
 <script src="qrcode.min.js"></script>
 <style>
-  .proj-event { font-size: 2.1rem; font-weight: 700; color: #17615f; margin: 0 0 .5rem; line-height: 1.2; }
+  .proj-info .proj-event { font-size: clamp(2.6rem, 6vw, 4.3rem); font-weight: 800; color: #8fd0cc; margin: 0 0 .4rem; line-height: 1.15; font-family: "Fira Sans", sans-serif; }
+  .proj-info .proj-church { font-size: clamp(1.35rem, 3vw, 2.1rem); font-weight: 600; color: #e6ddf5; margin: 0 0 1rem; }
 </style>
 </head>
 <body>
@@ -22,6 +23,7 @@
   <div class="proj-grid">
     <div class="proj-info">
       <p class="proj-event" id="event-name" hidden></p>
+      <p class="proj-church" id="church-name" hidden></p>
       <h1>Interpretación en vivo<br>Live Interpretation</h1>
       <p>Escanea el código con tu teléfono y escucha en tu idioma.<br>
       <span>Scan the code with your phone and listen in your language.</span></p>
@@ -47,6 +49,12 @@
     ev.textContent = title;
     ev.hidden = false;
     document.title = title + ' · MovilizarMe';
+  }
+  var church = new URLSearchParams(location.search).get('church') || '';
+  if (church) {
+    var ch = document.getElementById('church-name');
+    ch.textContent = church;
+    ch.hidden = false;
   }
   var url = code ? (window.MM.listenBase + '?room=' + code) : '';
   if (code) {
