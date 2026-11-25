@@ -91,6 +91,8 @@
         <p style="margin:.5rem 0"><strong>Traducción:</strong> <span id="ai-tran"></span></p>
       </div>
       <p><button class="btn sec" id="btn-swap" type="button" hidden>Cambiar dirección</button></p>
+      <p><button class="btn sec" id="btn-pause" type="button" hidden>Pausar interpretación: que se oiga la voz original</button></p>
+      <p><button class="btn" id="btn-audio" type="button" hidden>Activar el sonido de la IA</button></p>
     </div>
     <p>
       <button class="btn" id="btn-start">Empezar a interpretar</button>
@@ -171,7 +173,7 @@
       sel.appendChild(o);
     });
   }
-  var ai = { rec: null, cfg: null, ctx: null, dest: null, nextTime: 0, refreshTimer: null, live: false };
+  var ai = { rec: null, cfg: null, ctx: null, dest: null, nextTime: 0, refreshTimer: null, live: false, aiPub: null, micPub: null, micStream: null, paused: false };
 
   function langName(c) {
     for (var i = 0; i < LANGS.length; i++) if (LANGS[i][0] === c) return LANGS[i][1];
@@ -228,6 +230,7 @@
   // salida va a un destino cuyo track es el que se publica en la sala.
   function feedPcm(buf) {
     if (!buf || !buf.byteLength || !ai.ctx) return;
+    if (ai.ctx.state === 'suspended') ai.ctx.resume();
     var view = new DataView(buf);
     var offset = 0;
     if (buf.byteLength > 44 && view.getUint32(0) === 0x52494646) offset = 44; // encabezado WAV (RIFF)
@@ -324,12 +327,42 @@
       var AC = window.AudioContext || window.webkitAudioContext;
       ai.ctx = new AC();
       ai.dest = ai.ctx.createMediaStreamDestination();
-      await room.localParticipant.publishTrack(ai.dest.stream.getAudioTracks()[0], { source: LivekitClient.Track.Source.Microphone });
     }
-    if (ai.ctx.state === 'suspended') await ai.ctx.resume();
+    if (!ai.aiPub) {
+      ai.aiPub = await room.localParticipant.publishTrack(ai.dest.stream.getAudioTracks()[0], { source: LivekitClient.Track.Source.Microphone });
+    }
+    if (ai.ctx.state === 'suspended') { try { await ai.ctx.resume(); } catch (e) {} }
+    // Pista del micrófono para la pausa con voz original: se publica
+    // silenciada; al pausar se activa ella y se silencia la de la IA.
+    if (!ai.micPub) {
+      try {
+        var micId = document.getElementById('mic').value;
+        var micOpts = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+        var micStream;
+        try {
+          var withDev = Object.assign({}, micOpts);
+          if (micId) withDev.deviceId = { exact: micId };
+          micStream = await navigator.mediaDevices.getUserMedia({ audio: withDev });
+        } catch (e1) {
+          micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        }
+        ai.micStream = micStream;
+        ai.micPub = await room.localParticipant.publishTrack(micStream.getAudioTracks()[0], { source: LivekitClient.Track.Source.Microphone });
+        await ai.micPub.mute();
+      } catch (e2) {
+        ai.micPub = null;
+      }
+    }
     ai.nextTime = 0;
     await startRecognizer(data.token, data.region, src, dst);
     ai.live = true;
+    document.getElementById('btn-pause').hidden = false;
+    if (ai.ctx.state !== 'running') {
+      document.getElementById('btn-audio').hidden = false;
+      setAiState('La IA está traduciendo el texto, pero el navegador tiene el sonido bloqueado. Toca «Activar el sonido de la IA».', true);
+    } else if (!ai.micPub) {
+      setAiState('IA activa, pero la pausa con voz original no está disponible: no se pudo abrir el micrófono por segunda vez.');
+    }
     document.getElementById('ai-text').hidden = false;
     document.getElementById('btn-swap').hidden = false;
     document.getElementById('mode').disabled = true;
@@ -367,6 +400,46 @@
       await startRecognizer(data.token, data.region, nuevoSrc, nuevoDst);
     } catch (e) {
       setAiState('No se pudo cambiar la dirección (' + (e && e.message ? e.message : e) + '). Pulsa Terminar y vuelve a empezar.', true);
+    }
+    btn.disabled = false;
+  });
+
+  // Si el navegador dejó el contexto de audio suspendido, este botón lo
+  // despierta con un toque real (la única forma segura en iPad).
+  document.getElementById('btn-audio').addEventListener('click', async function () {
+    if (!ai.ctx) return;
+    try { await ai.ctx.resume(); } catch (e) {}
+    if (ai.ctx.state === 'running') {
+      this.hidden = true;
+      setAiState('Sonido de la IA activado. Habla por el micrófono elegido.');
+    } else {
+      setAiState('El navegador sigue bloqueando el sonido. Recarga la página y vuelve a empezar.', true);
+    }
+  });
+
+  // Pausa de la interpretación: se silencia la pista de la IA y se activa
+  // la del micrófono, para que los oyentes oigan la voz original sin que
+  // el servicio se interrumpa. La transcripción sigue corriendo.
+  document.getElementById('btn-pause').addEventListener('click', async function () {
+    if (!ai.live) return;
+    if (!ai.micPub || !ai.aiPub) { setAiState('La pausa con voz original no está disponible en este equipo.', true); return; }
+    var btn = this; btn.disabled = true;
+    try {
+      if (!ai.paused) {
+        await ai.aiPub.mute();
+        await ai.micPub.unmute();
+        ai.paused = true;
+        btn.textContent = 'Reanudar la interpretación';
+        setAiState('En pausa: los oyentes escuchan la voz original. La transcripción sigue corriendo.');
+      } else {
+        await ai.micPub.mute();
+        await ai.aiPub.unmute();
+        ai.paused = false;
+        btn.textContent = 'Pausar interpretación: que se oiga la voz original';
+        setAiState('Interpretación reanudada.');
+      }
+    } catch (e) {
+      setAiState('No se pudo cambiar el audio (' + (e && e.message ? e.message : e) + ').', true);
     }
     btn.disabled = false;
   });
@@ -439,6 +512,22 @@
     btn.disabled = true;
     try {
       setStatus('Conectando…');
+      if (document.getElementById('mode').value === 'ai' && !ai.ctx) {
+        // El contexto de audio se crea AQUÍ, dentro del toque del botón:
+        // si se crea después de esperas de red, el iPad lo deja suspendido
+        // y la voz de la IA nunca sale (el texto sí, el audio no).
+        var AC0 = window.AudioContext || window.webkitAudioContext;
+        ai.ctx = new AC0();
+        ai.dest = ai.ctx.createMediaStreamDestination();
+        try {
+          var unlockBuf = ai.ctx.createBuffer(1, 1, 22050);
+          var unlockSrc = ai.ctx.createBufferSource();
+          unlockSrc.buffer = unlockBuf;
+          unlockSrc.connect(ai.ctx.destination);
+          unlockSrc.start(0);
+        } catch (e) {}
+        if (ai.ctx.state === 'suspended') ai.ctx.resume();
+      }
       if (!room) {
         var res = await fetch(window.MM.api + '/api/token', {
           method: 'POST',

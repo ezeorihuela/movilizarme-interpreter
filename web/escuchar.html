@@ -8,11 +8,16 @@
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
 <style>
-  #captions { margin-top: 1.4rem; max-width: 34rem; margin-left: auto; margin-right: auto; }
-  #cap-tran { font-size: 1.45rem; line-height: 1.45; font-weight: 600; margin: 0 0 .4rem; }
+  #captions { margin-top: 1rem; max-width: 42rem; margin-left: auto; margin-right: auto; }
+  #cap-prev { font-size: clamp(1.05rem, 4.2vw, 1.4rem); line-height: 1.4; opacity: .45; margin: 0 0 .7rem; }
+  #cap-tran { font-size: clamp(2.2rem, 9vw, 3.6rem); line-height: 1.25; font-weight: 700; margin: 0 0 .5rem; }
   #cap-tran.interim { opacity: .55; }
-  #cap-orig { font-size: 1.05rem; line-height: 1.4; opacity: .65; margin: 0; }
+  #cap-orig { font-size: clamp(1.2rem, 5vw, 1.6rem); line-height: 1.4; opacity: .7; margin: 0; }
   #cap-orig.interim { opacity: .4; }
+  /* En vivo la pantalla es para leer: fuera textos largos y título grande. */
+  body.live h1 { font-size: 1.45rem; margin: .3rem 0; }
+  body.live .brand { font-size: .95rem; margin-bottom: .1rem; }
+  body.live #t-intro, body.live #t-tip { display: none; }
 </style>
 </head>
 <body>
@@ -30,6 +35,7 @@
   <div id="step-live" hidden>
     <p><span class="pulse on"></span><strong id="t-live">Estás escuchando en vivo</strong></p>
     <div id="captions" hidden aria-live="polite">
+      <p id="cap-prev"></p>
       <p id="cap-tran"></p>
       <p id="cap-orig"></p>
     </div>
@@ -98,6 +104,7 @@
           track.attach();
           document.getElementById('step-code').hidden = true;
           document.getElementById('step-live').hidden = false;
+          document.body.classList.add('live');
           setStatus('');
         }
       });
@@ -108,6 +115,9 @@
           var box = document.getElementById('captions');
           var trEl = document.getElementById('cap-tran');
           var orEl = document.getElementById('cap-orig');
+          if (d.f && d.tr && trEl.textContent && d.tr !== trEl.textContent) {
+            document.getElementById('cap-prev').textContent = trEl.textContent;
+          }
           if (d.tr) trEl.textContent = d.tr;
           if (d.o) orEl.textContent = d.o;
           trEl.className = d.f ? '' : 'interim';
@@ -129,6 +139,7 @@
     document.getElementById('step-code').hidden = false;
     document.getElementById('step-live').hidden = true;
     document.getElementById('captions').hidden = true;
+    document.body.classList.remove('live');
     document.getElementById('btn-listen').disabled = false;
   }
   document.getElementById('btn-stop').addEventListener('click', stop);
