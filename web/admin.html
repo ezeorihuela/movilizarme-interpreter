@@ -137,6 +137,21 @@
       <p class="state" id="smtp-state"></p>
     </div>
 
+    <div class="card">
+      <h2>Interpretación por IA (Azure)</h2>
+      <p class="mini">La consola usa Azure Speech Translation para interpretar sin intérprete humano. Guarda la región y la clave de tu recurso de Azure AI Speech. La clave queda solo en tu base de datos: el servidor entrega a la consola un token temporal, nunca la clave. Una vez guardado, los campos quedan bloqueados: para cambiarlos usa Editar, con doble confirmación.</p>
+      <div class="row cols2">
+        <label>Región de Azure<input id="a-region" type="text" placeholder="eastus"></label>
+        <label>Clave de Azure<input id="a-key" type="password" placeholder="••••••••••••••••"></label>
+      </div>
+      <div class="btnrow">
+        <button class="btn" id="save-azure">Guardar datos de Azure</button>
+        <button class="btn secondary" id="edit-azure" hidden>Editar</button>
+        <button class="btn secondary" id="cancel-azure" hidden>Cancelar</button>
+      </div>
+      <p class="state" id="azure-state"></p>
+    </div>
+
     <p><button class="btn secondary" id="logout">Cerrar sesión</button></p>
   </div>
 </div>
@@ -246,6 +261,40 @@
       .then(showSmtp)
       .catch(function (err) { smtpState('err', 'No se guardó: ' + err.message); });
   });
+  var azureSaved = null;
+  function azureState(kind, text) { var el = $('azure-state'); el.className = 'state ' + kind; el.textContent = text; }
+  function lockAzure(lock) {
+    $('a-region').disabled = lock;
+    $('a-key').disabled = lock;
+    $('save-azure').hidden = lock;
+    $('cancel-azure').hidden = lock;
+    $('edit-azure').hidden = !lock;
+    if (lock) { $('a-key').value = ''; $('a-key').placeholder = azureSaved && azureSaved.azureConfigured ? '•••••••• (guardada)' : 'Sin guardar'; }
+    else { $('a-key').placeholder = 'Escribe solo si quieres cambiarla'; }
+  }
+  function showAzure(s) {
+    azureSaved = s;
+    $('a-region').value = s.azureRegion || '';
+    if (!s.azureRegion && !s.azureConfigured) { lockAzure(false); azureState('note', 'Todavía no hay datos de Azure guardados. Sin ellos, el modo de IA de la consola no funciona.'); return; }
+    lockAzure(true);
+    if (s.azureConfigured && s.azureRegion) azureState('ok', 'Guardado y verificado: región ' + s.azureRegion + ' · clave de Azure guardada.');
+    else if (!s.azureRegion) azureState('err', 'Falta la región de Azure. Usa Editar para agregarla.');
+    else azureState('err', 'Guardada la región ' + s.azureRegion + ' · FALTA la clave de Azure. Usa Editar para agregarla.');
+  }
+  $('edit-azure').addEventListener('click', function () {
+    if (!confirm('¿Editar los datos de Azure? Un cambio incorrecto detiene la interpretación por IA.')) return;
+    if (!confirm('Segunda confirmación: ¿continuar con la edición?')) return;
+    lockAzure(false);
+    azureState('note', 'Editando. Si dejas la clave vacía, se conserva la guardada. Al terminar, pulsa Guardar datos de Azure.');
+  });
+  $('cancel-azure').addEventListener('click', function () { if (azureSaved) showAzure(azureSaved); });
+  $('save-azure').addEventListener('click', function () {
+    azureState('note', 'Guardando…');
+    api('/api/admin/settings', { method: 'POST', body: JSON.stringify({ azureRegion: $('a-region').value.trim(), azureKey: $('a-key').value.trim() || undefined }) })
+      .then(function () { return api('/api/admin/settings'); })
+      .then(showAzure)
+      .catch(function (err) { azureState('err', 'No se guardó: ' + err.message); });
+  });
   $('logout').addEventListener('click', function () { api('/api/admin/logout', { method: 'POST', body: '{}' }).then(function () { location.reload(); }); });
 
   function gmailState(kind, text) { var el = $('gmail-state'); el.className = 'state ' + kind; el.textContent = text; }
@@ -291,7 +340,7 @@
       } else {
         $('dash').hidden = false;
         api('/api/admin/settings').then(function (s) {
-          showSmtp(s); showGmail(s);
+          showSmtp(s); showGmail(s); showAzure(s);
           var g = new URLSearchParams(location.search).get('gmail');
           if (g === 'error' || g === 'sin-token') gmailState('err', 'Google no completó la conexión. Inténtalo de nuevo.');
           if (g === 'sin-credenciales') gmailState('err', 'Faltan las credenciales de Google en el servidor. Avísale a Chipitín.');

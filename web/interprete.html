@@ -8,6 +8,7 @@
 <script src="config.js"></script>
 <script src="qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/microsoft-cognitiveservices-speech-sdk@1/distrib/browser/microsoft.cognitiveservices-speech-sdk.bundle-min.js"></script>
 </head>
 <body>
 <main class="wrap">
@@ -47,6 +48,29 @@
       <select id="mic"></select>
     </p>
     <p>
+      <label for="mode">Modo de interpretación</label><br>
+      <select id="mode">
+        <option value="human">Intérprete humano</option>
+        <option value="ai">Interpretación por IA</option>
+      </select>
+    </p>
+    <div id="ai-box" hidden>
+      <p>
+        <label for="ai-src">Se habla (idioma de origen)</label><br>
+        <select id="ai-src"></select>
+      </p>
+      <p>
+        <label for="ai-dst">La IA interpreta a (idioma de destino)</label><br>
+        <select id="ai-dst"></select>
+      </p>
+      <p class="status" id="ai-state" role="status"></p>
+      <div id="ai-text" hidden>
+        <p style="margin:.5rem 0"><strong>Original:</strong> <span id="ai-orig"></span></p>
+        <p style="margin:.5rem 0"><strong>Traducción:</strong> <span id="ai-tran"></span></p>
+      </div>
+      <p><button class="btn sec" id="btn-swap" type="button" hidden>Cambiar dirección</button></p>
+    </div>
+    <p>
       <button class="btn" id="btn-start">Empezar a interpretar</button>
       <button class="btn sec" id="btn-end" hidden>Terminar</button>
       <button class="btn sec change-key" type="button">Cambiar clave</button>
@@ -77,6 +101,190 @@
       document.getElementById(s).hidden = s !== id;
     });
   }
+
+  // ---------------- Modo IA (Azure Speech Translation) ----------------
+  var LANGS = [
+    ['es', 'Español'], ['en', 'Inglés'], ['pt', 'Portugués'], ['fr', 'Francés'],
+    ['de', 'Alemán'], ['it', 'Italiano'], ['zh-Hans', 'Chino simplificado'],
+    ['ko', 'Coreano'], ['ht', 'Criollo haitiano']
+  ];
+  // Idioma de reconocimiento que entiende Azure para cada idioma de la lista.
+  var RECOG = { 'es': 'es-MX', 'en': 'en-US', 'pt': 'pt-BR', 'fr': 'fr-FR', 'de': 'de-DE', 'it': 'it-IT', 'zh-Hans': 'zh-CN', 'ko': 'ko-KR', 'ht': 'ht-HT' };
+  // Voz de la IA por idioma de destino. El criollo haitiano no tiene voz en
+  // esta lista: en ese destino no se fuerza ninguna y Azure usa la suya.
+  var VOICES = { 'es': 'es-MX-DaliaNeural', 'en': 'en-US-JennyNeural', 'pt': 'pt-BR-FranciscaNeural', 'fr': 'fr-FR-DeniseNeural', 'de': 'de-DE-KatjaNeural', 'it': 'it-IT-ElsaNeural', 'zh-Hans': 'zh-CN-XiaoxiaoNeural', 'ko': 'ko-KR-SunHiNeural' };
+  var ai = { rec: null, cfg: null, ctx: null, dest: null, nextTime: 0, refreshTimer: null, live: false };
+
+  function langName(c) {
+    for (var i = 0; i < LANGS.length; i++) if (LANGS[i][0] === c) return LANGS[i][1];
+    return c;
+  }
+  function setAiState(t, isError) {
+    var el = document.getElementById('ai-state');
+    el.textContent = t || '';
+    el.className = 'status' + (isError ? ' error' : '');
+  }
+  // Llena los dos selectores de idioma y evita que origen y destino coincidan:
+  // si eliges en uno el idioma del otro, el otro toma el valor anterior.
+  var srcSel = document.getElementById('ai-src');
+  var dstSel = document.getElementById('ai-dst');
+  LANGS.forEach(function (l) {
+    [srcSel, dstSel].forEach(function (sel) {
+      var opt = document.createElement('option');
+      opt.value = l[0]; opt.textContent = l[1];
+      sel.appendChild(opt);
+    });
+  });
+  srcSel.value = 'en'; dstSel.value = 'es';
+  var lastSrc = 'en', lastDst = 'es';
+  srcSel.addEventListener('change', function () {
+    if (srcSel.value === dstSel.value) dstSel.value = lastSrc;
+    lastSrc = srcSel.value; lastDst = dstSel.value;
+  });
+  dstSel.addEventListener('change', function () {
+    if (dstSel.value === srcSel.value) srcSel.value = lastDst;
+    lastSrc = srcSel.value; lastDst = dstSel.value;
+  });
+  document.getElementById('mode').addEventListener('change', function () {
+    var esIa = this.value === 'ai';
+    document.getElementById('ai-box').hidden = !esIa;
+    document.getElementById('btn-start').textContent = esIa ? 'Empezar la interpretación por IA' : 'Empezar a interpretar';
+  });
+
+  function pedirTokenAzure() {
+    return fetch(window.MM.api + '/api/azure/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ room: code, key: churchKey })
+    }).then(function (res) {
+      return res.json().then(function (data) {
+        if (!res.ok) throw new Error(data.error || 'El servidor no dio el acceso a la IA.');
+        return data;
+      });
+    });
+  }
+  // El audio traducido llega de Azure en trozos PCM de 16 kHz. Cada trozo se
+  // agenda en la línea de tiempo de WebAudio para que suene continuo, y la
+  // salida va a un destino cuyo track es el que se publica en la sala.
+  function feedPcm(buf) {
+    if (!buf || !buf.byteLength || !ai.ctx) return;
+    var view = new DataView(buf);
+    var offset = 0;
+    if (buf.byteLength > 44 && view.getUint32(0) === 0x52494646) offset = 44; // encabezado WAV (RIFF)
+    var frames = Math.floor((buf.byteLength - offset) / 2);
+    if (frames <= 0) return;
+    var audioBuf = ai.ctx.createBuffer(1, frames, 16000);
+    var ch = audioBuf.getChannelData(0);
+    for (var i = 0; i < frames; i++) ch[i] = view.getInt16(offset + i * 2, true) / 32768;
+    var node = ai.ctx.createBufferSource();
+    node.buffer = audioBuf;
+    node.connect(ai.dest);
+    var now = ai.ctx.currentTime;
+    if (ai.nextTime < now) ai.nextTime = now + 0.05;
+    node.start(ai.nextTime);
+    ai.nextTime += audioBuf.duration;
+  }
+  function showAiText(e, dst) {
+    if (!e.result) return;
+    if (e.result.text) document.getElementById('ai-orig').textContent = e.result.text;
+    if (e.result.translations) {
+      var t = e.result.translations.get(dst);
+      if (t) document.getElementById('ai-tran').textContent = t;
+    }
+  }
+  function startTokenRefresh() {
+    stopTokenRefresh();
+    // El token de Azure dura 10 minutos: se renueva en segundo plano por si
+    // Azure reconecta la sesión en un servicio largo.
+    ai.refreshTimer = setInterval(function () {
+      pedirTokenAzure().then(function (data) {
+        if (ai.cfg && data.token) ai.cfg.authorizationToken = data.token;
+      }).catch(function () {});
+    }, 8 * 60 * 1000);
+  }
+  function stopTokenRefresh() {
+    if (ai.refreshTimer) { clearInterval(ai.refreshTimer); ai.refreshTimer = null; }
+  }
+  function startRecognizer(token, region, src, dst) {
+    return new Promise(function (resolve, reject) {
+      var cfg = SpeechSDK.SpeechTranslationConfig.fromAuthorizationToken(token, region);
+      cfg.speechRecognitionLanguage = RECOG[src] || src;
+      cfg.addTargetLanguage(dst);
+      if (VOICES[dst]) { try { cfg.voiceName = VOICES[dst]; } catch (e) {} }
+      ai.cfg = cfg;
+      var deviceId = document.getElementById('mic').value;
+      var audioCfg = SpeechSDK.AudioConfig.fromMicrophoneInput(deviceId || undefined);
+      var rec = new SpeechSDK.TranslationRecognizer(cfg, audioCfg);
+      ai.rec = rec;
+      rec.recognizing = function (s, e) { showAiText(e, dst); };
+      rec.recognized = function (s, e) { showAiText(e, dst); };
+      rec.synthesizing = function (s, e) { if (e.result) feedPcm(e.result.audio); };
+      rec.canceled = function (s, e) {
+        if (e.reason === SpeechSDK.CancellationReason.Error) {
+          setAiState('La IA se detuvo: ' + (e.errorDetails || 'error de Azure') + ' Pulsa Terminar y vuelve a empezar.', true);
+        }
+      };
+      rec.startContinuousRecognitionAsync(function () {
+        setAiState('IA activa: ' + langName(src) + ' → ' + langName(dst) + '. Habla por el micrófono elegido.');
+        startTokenRefresh();
+        resolve();
+      }, function (err) {
+        reject(new Error('Azure no pudo empezar (' + err + ').'));
+      });
+    });
+  }
+  async function startAi() {
+    if (!window.SpeechSDK) throw new Error('No se cargó el módulo de voz de Microsoft. Revisa tu conexión a internet y recarga la página.');
+    var src = srcSel.value, dst = dstSel.value;
+    if (src === dst) throw new Error('El idioma de origen y el de destino deben ser distintos.');
+    setAiState('Pidiendo acceso a la IA…');
+    var data = await pedirTokenAzure();
+    if (!ai.ctx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      ai.ctx = new AC();
+      ai.dest = ai.ctx.createMediaStreamDestination();
+      await room.localParticipant.publishTrack(ai.dest.stream.getAudioTracks()[0], { source: LivekitClient.Track.Source.Microphone });
+    }
+    if (ai.ctx.state === 'suspended') await ai.ctx.resume();
+    ai.nextTime = 0;
+    await startRecognizer(data.token, data.region, src, dst);
+    ai.live = true;
+    document.getElementById('ai-text').hidden = false;
+    document.getElementById('btn-swap').hidden = false;
+    document.getElementById('mode').disabled = true;
+    srcSel.disabled = true; dstSel.disabled = true;
+  }
+  function stopAi() {
+    stopTokenRefresh();
+    if (ai.rec) {
+      var rec = ai.rec; ai.rec = null;
+      try { rec.stopContinuousRecognitionAsync(function () { try { rec.close(); } catch (e) {} }, function () { try { rec.close(); } catch (e) {} }); } catch (e) {}
+    }
+    ai.live = false;
+  }
+  // Cambiar la dirección sin recrear la sala: la pista publicada en LiveKit
+  // sale del mismo destino WebAudio y no se toca; solo se reinicia el
+  // reconocedor de Azure con los idiomas intercambiados.
+  document.getElementById('btn-swap').addEventListener('click', async function () {
+    if (!ai.live || !ai.rec) return;
+    var btn = this; btn.disabled = true;
+    var nuevoSrc = dstSel.value, nuevoDst = srcSel.value;
+    setAiState('Cambiando la dirección…');
+    try {
+      await new Promise(function (resolve) { ai.rec.stopContinuousRecognitionAsync(resolve, resolve); });
+      try { ai.rec.close(); } catch (e) {}
+      ai.rec = null;
+      stopTokenRefresh();
+      srcSel.value = nuevoSrc; dstSel.value = nuevoDst;
+      lastSrc = nuevoSrc; lastDst = nuevoDst;
+      var data = await pedirTokenAzure();
+      ai.nextTime = 0;
+      await startRecognizer(data.token, data.region, nuevoSrc, nuevoDst);
+    } catch (e) {
+      setAiState('No se pudo cambiar la dirección (' + (e && e.message ? e.message : e) + '). Pulsa Terminar y vuelve a empezar.', true);
+    }
+    btn.disabled = false;
+  });
 
   if (churchKey) { document.getElementById('key').value = churchKey; showStep('step-create'); }
 
@@ -158,26 +366,34 @@
         room.on('participantDisconnected', updateListeners);
         await room.connect(data.url, data.token);
       }
-      // Micrófono: primero el elegido; si el navegador lo rechaza
-      // (pasa en iPad con el identificador del dispositivo), se reintenta
-      // con el micrófono predeterminado y luego sin opciones.
-      // Ojo: en livekit-client v2 el método es setMicrophoneEnabled(true, opciones);
-      // enableMicrophone no existe y era la causa de los fallos al empezar.
-      var deviceId = document.getElementById('mic').value;
-      var base = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
-      try {
-        var conDev = Object.assign({}, base);
-        if (deviceId) conDev.deviceId = { exact: deviceId };
-        await room.localParticipant.setMicrophoneEnabled(true, conDev);
-      } catch (micErr) {
+      if (document.getElementById('mode').value === 'ai') {
+        // Modo IA: el micrófono va a Azure y a la sala solo llega la voz
+        // traducida. El micrófono local no se publica en la sala.
+        await startAi();
+        setStatus('');
+        status.innerHTML = '<span class="pulse on"></span><strong>En vivo: la IA está interpretando</strong>';
+      } else {
+        // Micrófono: primero el elegido; si el navegador lo rechaza
+        // (pasa en iPad con el identificador del dispositivo), se reintenta
+        // con el micrófono predeterminado y luego sin opciones.
+        // Ojo: en livekit-client v2 el método es setMicrophoneEnabled(true, opciones);
+        // enableMicrophone no existe y era la causa de los fallos al empezar.
+        var deviceId = document.getElementById('mic').value;
+        var base = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
         try {
-          await room.localParticipant.setMicrophoneEnabled(true, base);
-        } catch (micErr2) {
-          await room.localParticipant.setMicrophoneEnabled(true);
+          var conDev = Object.assign({}, base);
+          if (deviceId) conDev.deviceId = { exact: deviceId };
+          await room.localParticipant.setMicrophoneEnabled(true, conDev);
+        } catch (micErr) {
+          try {
+            await room.localParticipant.setMicrophoneEnabled(true, base);
+          } catch (micErr2) {
+            await room.localParticipant.setMicrophoneEnabled(true);
+          }
         }
+        setStatus('');
+        status.innerHTML = '<span class="pulse on"></span><strong>En vivo: estás interpretando</strong>';
       }
-      setStatus('');
-      status.innerHTML = '<span class="pulse on"></span><strong>En vivo: estás interpretando</strong>';
       btn.hidden = true;
       document.getElementById('btn-end').hidden = false;
       updateListeners();
@@ -188,6 +404,7 @@
   });
 
   document.getElementById('btn-end').addEventListener('click', function () {
+    stopAi();
     if (room) { room.disconnect(); room = null; }
     location.reload();
   });

@@ -260,7 +260,10 @@ async function sendViaGmail(church, texto) {
     'Content-Type: text/plain; charset="UTF-8"',
     'Content-Transfer-Encoding: base64',
     '',
-    Buffer.from(texto, 'utf8').toString('base64'),
+    // El cuerpo base64 va en líneas de 76 caracteres (estándar MIME):
+    // en una sola línea larga, Apple Mail no lo decodifica y muestra
+    // el código crudo en vez del texto.
+    Buffer.from(texto, 'utf8').toString('base64').replace(/.{1,76}/g, '$&\r\n').trim(),
   ].join('\r\n');
   const access = await gmailAccessToken();
   const r = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
@@ -334,6 +337,35 @@ app.post('/api/room', async (req, res) => {
   while (await store.getRoom(code)) code = makeCode(6);
   await store.createRoom(code, church);
   res.json({ room: code, church: church.name });
+});
+
+// Token temporal de Azure para el modo IA de la consola.
+// Valida la sala y la clave igual que /api/token para el rol intérprete.
+// La clave de Azure vive solo en el servidor: al navegador llega un token
+// temporal de 10 minutos que pide este endpoint a Azure.
+app.post('/api/azure/token', async (req, res) => {
+  const { room, key } = req.body || {};
+  const code = String(room || '').toUpperCase();
+  const r = await store.getRoom(code);
+  if (!r || r.finished_at) return res.status(404).json({ error: 'Sala no encontrada o ya cerrada.' });
+  const church = await store.getChurchByKey(normKey(key));
+  if (!church || church.id !== r.church_id) return res.status(403).json({ error: 'Se requiere la clave de la iglesia dueña de esta sala.' });
+  const v = churchValid(church);
+  if (!v.ok) return res.status(403).json({ error: v.error });
+  const azKey = await store.getSetting('azure_key');
+  const azRegion = await store.getSetting('azure_region');
+  if (!azKey || !azRegion) return res.status(400).json({ error: 'La interpretación por IA aún no está configurada. Falta guardar la clave de Azure en el panel.' });
+  try {
+    const resp = await fetch('https://' + azRegion + '.api.cognitive.microsoft.com/sts/v1.0/issueToken', {
+      method: 'POST',
+      headers: { 'Ocp-Apim-Subscription-Key': azKey, 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+    if (!resp.ok) throw new Error('Azure respondió ' + resp.status);
+    const token = await resp.text();
+    res.json({ token, region: azRegion });
+  } catch (e) {
+    res.status(502).json({ error: 'Azure rechazó la clave o no respondió. Revisa la clave y la región guardadas en el panel.' });
+  }
 });
 
 // Token: el oyente solo necesita la sala; el intérprete, la clave de su iglesia
@@ -427,6 +459,7 @@ app.get('/api/admin/settings', requireAdmin, async (req, res) => {
     smtpUser: (await store.getSetting('smtp_user')) || '', smtpConfigured: !!(await store.getSetting('smtp_pass')),
     gmailUser: (await store.getSetting('gmail_user')) || '', gmailConnected: !!(await store.getSetting('gmail_refresh')),
     googleConfigured: !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET),
+    azureRegion: (await store.getSetting('azure_region')) || '', azureConfigured: !!(await store.getSetting('azure_key')),
   });
 });
 app.get('/api/admin/google/connect', requireAdmin, async (req, res) => {
@@ -471,6 +504,8 @@ app.post('/api/admin/settings', requireAdmin, async (req, res) => {
   const b = req.body || {};
   if (b.smtpUser !== undefined) await store.setSetting('smtp_user', String(b.smtpUser));
   if (b.smtpPass) await store.setSetting('smtp_pass', String(b.smtpPass));
+  if (b.azureRegion !== undefined) await store.setSetting('azure_region', String(b.azureRegion).trim().toLowerCase());
+  if (b.azureKey) await store.setSetting('azure_key', String(b.azureKey).trim());
   res.json({ ok: true });
 });
 
