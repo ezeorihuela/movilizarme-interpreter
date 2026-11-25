@@ -91,7 +91,13 @@
   }
   function updateListeners() {
     if (room) {
-      var n = Math.max(0, room.numParticipants - 1);
+      // Se cuentan los oyentes reales de la sala (identidad oyente-...).
+      // room.numParticipants viene del resumen del servidor y no refleja
+      // a los oyentes en tiempo real: marcaba 0 con un oyente escuchando.
+      var n = 0;
+      room.remoteParticipants.forEach(function (p) {
+        if (p.identity && p.identity.indexOf('oyente-') === 0) n++;
+      });
       document.getElementById('listeners').textContent =
         'Oyentes conectados: ' + n;
     }
