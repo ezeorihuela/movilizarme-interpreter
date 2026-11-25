@@ -160,6 +160,8 @@
 (function () {
   var $ = function (id) { return document.getElementById(id); };
   var churches = [];
+  var editingId = null;
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
   function api(path, opts) {
     return fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts || {}))
       .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.error || 'Error'); return d; }); });
@@ -185,11 +187,25 @@
           '</select>' +
           (c.status === 'trial' ? '<span class="mini trial-lbl">Fin de prueba</span><input type="date" data-act="trial" data-id="' + c.id + '" value="' + fmtDate(c.trial_ends) + '">' : '') +
         '</td>' +
-        '<td>' + (u.rooms_month || 0) + ' salas<br>' + Math.round(u.listener_month || 0) + ' min oyentes<br><span class="mini">' + Math.round(u.minutes_total || 0) + ' min en total</span></td>' +
+        '<td>' + (u.rooms_month || 0) + ' salas este mes<br>' + Math.round(u.listener_month || 0) + ' min oyentes este mes<br><span class="mini">' + Math.round(u.minutes_total || 0) + ' min en total desde el inicio</span></td>' +
         '<td><div class="btnrow col">' +
           '<button class="btn small" data-act="welcome" data-id="' + c.id + '">Enviar bienvenida</button>' +
           '<button class="btn secondary small" data-act="regen" data-id="' + c.id + '">Nueva clave</button>' +
-        '</div></td></tr>';
+          '<button class="btn secondary small" data-act="edit" data-id="' + c.id + '">Editar</button>' +
+        '</div></td></tr>' +
+        (String(editingId) === String(c.id) ?
+          '<tr class="editrow"><td colspan="5">' +
+            '<div class="row cols3">' +
+              '<div><label>Nombre de la iglesia</label><input id="e-name" type="text" value="' + esc(c.name) + '"></div>' +
+              '<div><label>Persona de contacto</label><input id="e-contact" type="text" value="' + esc(c.contact_name || '') + '"></div>' +
+              '<div><label>Correo</label><input id="e-email" type="email" value="' + esc(c.email || '') + '"></div>' +
+            '</div>' +
+            '<div style="margin-top:.6rem"><label>Notas</label><input id="e-notes" type="text" value="' + esc(c.notes || '') + '"></div>' +
+            '<div class="btnrow" style="margin-top:.7rem">' +
+              '<button class="btn small" data-act="save-edit" data-id="' + c.id + '">Guardar cambios</button>' +
+              '<button class="btn secondary small" data-act="cancel-edit" data-id="' + c.id + '">Cancelar</button>' +
+            '</div>' +
+          '</td></tr>' : '');
     }).join('');
   }
 
@@ -211,6 +227,13 @@
     if (act === 'copy') { navigator.clipboard.writeText(c.key.replace('-', '')); msg('Clave de ' + c.name + ' copiada.'); }
     if (act === 'welcome') { msg('Enviando correo a ' + c.name + '…'); api('/api/admin/churches/' + id + '/welcome', { method: 'POST', body: '{}' }).then(function () { msg('Correo de bienvenida enviado a ' + c.email + '.'); }).catch(function (err) { msg(err.message, true); }); }
     if (act === 'regen') { if (confirm('¿Generar una clave nueva para ' + c.name + '? La anterior deja de funcionar.')) { api('/api/admin/churches/' + id, { method: 'PATCH', body: JSON.stringify({ regenerateKey: true }) }).then(load).then(function () { msg('Clave nueva generada.'); }); } }
+    if (act === 'edit') { editingId = id; render(); }
+    if (act === 'cancel-edit') { editingId = null; render(); }
+    if (act === 'save-edit') {
+      var data = { name: $('e-name').value.trim(), contactName: $('e-contact').value.trim(), email: $('e-email').value.trim(), notes: $('e-notes').value.trim() };
+      if (!data.name) { msg('Falta el nombre de la iglesia.', true); return; }
+      api('/api/admin/churches/' + id, { method: 'PATCH', body: JSON.stringify(data) }).then(function () { editingId = null; return load(); }).then(function () { msg('Datos de ' + data.name + ' actualizados.'); }).catch(function (err) { msg(err.message, true); });
+    }
   });
   $('tbody').addEventListener('change', function (e) {
     var el = e.target, id = el.getAttribute('data-id'), act = el.getAttribute('data-act');
