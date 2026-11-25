@@ -87,7 +87,7 @@
 <script>
 (function () {
   var status = document.getElementById('status');
-  var room = null, code = null;
+  var room = null, code = null, roomTitle = '';
   var churchKey = localStorage.getItem('mm-church-key') || '';
 
   function setStatus(t, isError) {
@@ -344,9 +344,10 @@
       var data = await res.json();
       if (!res.ok) throw new Error(data.error || 'No se pudo crear la sala.');
       code = data.room;
+      roomTitle = data.title || '';
       document.getElementById('room-code').textContent = code;
       document.getElementById('church-name').textContent = (data.title ? (data.title + ' · ') : '') + (data.church ? ('Iglesia: ' + data.church) : '');
-      document.getElementById('link-projector').href = 'proyector.html?room=' + code;
+      document.getElementById('link-projector').href = 'proyector.html?room=' + code + (roomTitle ? ('&title=' + encodeURIComponent(roomTitle)) : '');
       document.getElementById('link-listen').href = window.MM.listenBase + '?room=' + code;
       showStep('step-room');
       // Lista de micrófonos (pide permiso una vez). Si este equipo no
@@ -465,6 +466,14 @@
     }
     function finish() {
       x.textAlign = 'left'; x.fillStyle = '#fff';
+      if (roomTitle) {
+        var fsT = 54;
+        x.font = '600 ' + fsT + 'px ' + F;
+        while (x.measureText(roomTitle).width > 1100 && fsT > 30) { fsT -= 4; x.font = '600 ' + fsT + 'px ' + F; }
+        x.fillStyle = '#8fd0cc';
+        x.fillText(roomTitle, 120, 392);
+        x.fillStyle = '#fff';
+      }
       x.font = '700 88px ' + F;
       x.fillText('Interpretación en vivo', 120, 470);
       x.fillText('Live Interpretation', 120, 575);

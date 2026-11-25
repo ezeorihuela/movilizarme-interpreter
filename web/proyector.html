@@ -7,6 +7,9 @@
 <link rel="stylesheet" href="app.css">
 <script src="config.js"></script>
 <script src="qrcode.min.js"></script>
+<style>
+  .proj-event { font-size: 2.1rem; font-weight: 700; color: #17615f; margin: 0 0 .5rem; line-height: 1.2; }
+</style>
 </head>
 <body>
 <main class="projector">
@@ -18,6 +21,7 @@
 
   <div class="proj-grid">
     <div class="proj-info">
+      <p class="proj-event" id="event-name" hidden></p>
       <h1>Interpretación en vivo<br>Live Interpretation</h1>
       <p>Escanea el código con tu teléfono y escucha en tu idioma.<br>
       <span>Scan the code with your phone and listen in your language.</span></p>
@@ -37,6 +41,13 @@
 (function () {
   var code = (new URLSearchParams(location.search).get('room') || '').toUpperCase();
   document.getElementById('code').textContent = code || '------';
+  var title = new URLSearchParams(location.search).get('title') || '';
+  if (title) {
+    var ev = document.getElementById('event-name');
+    ev.textContent = title;
+    ev.hidden = false;
+    document.title = title + ' · MovilizarMe';
+  }
   var url = code ? (window.MM.listenBase + '?room=' + code) : '';
   if (code) {
     var qr = qrcode(0, 'M');
