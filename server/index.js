@@ -283,6 +283,9 @@ async function sendViaGmail(church, texto) {
 // ---------------- App ----------------
 const app = express();
 app.use(cors());
+// El panel es una herramienta privada: fuera de los buscadores.
+app.use((req, res, next) => { res.setHeader('X-Robots-Tag', 'noindex, nofollow'); next(); });
+app.get('/robots.txt', (req, res) => { res.type('text/plain').send('User-agent: *\nDisallow: /\n'); });
 
 // Webhook de LiveKit: cuerpo crudo, antes del parser JSON
 const receiver = (API_KEY && API_SECRET) ? new WebhookReceiver(API_KEY, API_SECRET) : null;
