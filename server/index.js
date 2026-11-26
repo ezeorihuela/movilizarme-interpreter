@@ -132,12 +132,21 @@ const store = {
   },
 };
 
-function churchValid(c) {
-  if (!c) return { ok: false, error: 'Clave de iglesia no reconocida.' };
-  if (c.status === 'suspended') return { ok: false, error: 'La suscripción de esta iglesia está suspendida. Contacta a MovilizarMe.' };
+// Idioma de los mensajes: el cliente manda el idioma de su interfaz en el
+// cuerpo (lang) o en la cabecera X-MM-Lang. Español por defecto.
+function langOf(req) {
+  const l = (req.body && req.body.lang) || (req.get ? req.get('X-MM-Lang') : '') || '';
+  return l === 'en' ? 'en' : 'es';
+}
+function L(req, es, en) { return langOf(req) === 'en' ? en : es; }
+
+function churchValid(c, lg) {
+  const en = lg === 'en';
+  if (!c) return { ok: false, error: en ? 'Church key not recognized.' : 'Clave de iglesia no reconocida.' };
+  if (c.status === 'suspended') return { ok: false, error: en ? "This church's subscription is suspended. Contact MovilizarMe." : 'La suscripción de esta iglesia está suspendida. Contacta a MovilizarMe.' };
   if (c.status === 'trial' && c.trial_ends) {
     const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
-    if (new Date(c.trial_ends) < hoy) return { ok: false, error: 'El periodo de prueba de esta iglesia terminó. Contacta a MovilizarMe.' };
+    if (new Date(c.trial_ends) < hoy) return { ok: false, error: en ? "This church's trial period has ended. Contact MovilizarMe." : 'El periodo de prueba de esta iglesia terminó. Contacta a MovilizarMe.' };
   }
   return { ok: true };
 }
@@ -172,12 +181,13 @@ async function isAdmin(req) {
 }
 async function requireAdmin(req, res, next) {
   if (await isAdmin(req)) return next();
-  res.status(401).json({ error: 'Sesión de administrador requerida.' });
+  res.status(401).json({ error: L(req, 'Sesión de administrador requerida.', 'Admin session required.') });
 }
 
 // ---------------- Correo de bienvenida ----------------
-async function sendWelcome(church) {
-  if (!church.email) throw new Error('Esta iglesia no tiene correo registrado.');
+async function sendWelcome(church, lg) {
+  const E = (es, en) => (lg === 'en' ? en : es);
+  if (!church.email) throw new Error(E('Esta iglesia no tiene correo registrado.', 'This church has no email on file.'));
   const clave = fmtKey(church.key);
   const prueba = church.status === 'trial' && church.trial_ends
     ? `\nSu periodo de prueba vence el ${new Date(church.trial_ends).toLocaleDateString('es')}.` : '';
@@ -213,7 +223,7 @@ MovilizarMe · Ayudando a las personas a encontrar su camino de regreso a Dios`;
   // Respaldo: SMTP clásico (solo funciona donde no bloqueen los puertos).
   const user = await store.getSetting('smtp_user');
   const pass = await store.getSetting('smtp_pass');
-  if (!user || !pass) throw new Error('Correo no configurado: conecta tu cuenta de Google en el panel.');
+  if (!user || !pass) throw new Error(E('Correo no configurado: conecta tu cuenta de Google en el panel.', 'Email not set up: connect your Google account in the panel.'));
   const nodemailer = require('nodemailer');
   const t = nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user, pass }, family: 4, connectionTimeout: 15000, greetingTimeout: 10000, socketTimeout: 25000 });
   await t.sendMail({
@@ -340,7 +350,7 @@ function cleanTitle(v) {
 app.post('/api/room', async (req, res) => {
   const key = normKey((req.body || {}).key);
   const church = await store.getChurchByKey(key);
-  const v = churchValid(church);
+  const v = churchValid(church, langOf(req));
   if (!v.ok) return res.status(403).json({ error: v.error });
   const title = cleanTitle((req.body || {}).name);
   let code = makeCode(6);
@@ -357,14 +367,14 @@ app.post('/api/azure/token', async (req, res) => {
   const { room, key } = req.body || {};
   const code = String(room || '').toUpperCase();
   const r = await store.getRoom(code);
-  if (!r || r.finished_at) return res.status(404).json({ error: 'Sala no encontrada o ya cerrada.' });
+  if (!r || r.finished_at) return res.status(404).json({ error: L(req, 'Sala no encontrada o ya cerrada.', 'Room not found or already closed.') });
   const church = await store.getChurchByKey(normKey(key));
-  if (!church || church.id !== r.church_id) return res.status(403).json({ error: 'Se requiere la clave de la iglesia dueña de esta sala.' });
-  const v = churchValid(church);
+  if (!church || church.id !== r.church_id) return res.status(403).json({ error: L(req, 'Se requiere la clave de la iglesia dueña de esta sala.', 'The key of the church that owns this room is required.') });
+  const v = churchValid(church, langOf(req));
   if (!v.ok) return res.status(403).json({ error: v.error });
   const azKey = await store.getSetting('azure_key');
   const azRegion = await store.getSetting('azure_region');
-  if (!azKey || !azRegion) return res.status(400).json({ error: 'La interpretación por IA aún no está configurada. Falta guardar la clave de Azure en el panel.' });
+  if (!azKey || !azRegion) return res.status(400).json({ error: L(req, 'La interpretación por IA aún no está configurada. Falta guardar la clave de Azure en el panel.', 'AI interpretation is not set up yet. The Azure key still needs to be saved in the panel.') });
   try {
     const resp = await fetch('https://' + azRegion + '.api.cognitive.microsoft.com/sts/v1.0/issueToken', {
       method: 'POST',
@@ -374,7 +384,7 @@ app.post('/api/azure/token', async (req, res) => {
     const token = await resp.text();
     res.json({ token, region: azRegion });
   } catch (e) {
-    res.status(502).json({ error: 'Azure rechazó la clave o no respondió. Revisa la clave y la región guardadas en el panel.' });
+    res.status(502).json({ error: L(req, 'Azure rechazó la clave o no respondió. Revisa la clave y la región guardadas en el panel.', 'Azure rejected the key or did not respond. Check the key and region saved in the panel.') });
   }
 });
 
@@ -383,13 +393,13 @@ app.post('/api/token', async (req, res) => {
   const { room, role, name, key } = req.body || {};
   const code = String(room || '').toUpperCase();
   const r = await store.getRoom(code);
-  if (!r || r.finished_at) return res.status(404).json({ error: 'Sala no encontrada o ya cerrada.' });
-  if (!API_KEY || !API_SECRET) return res.status(500).json({ error: 'Servidor sin claves de LiveKit.' });
+  if (!r || r.finished_at) return res.status(404).json({ error: L(req, 'Sala no encontrada o ya cerrada.', 'Room not found or already closed.') });
+  if (!API_KEY || !API_SECRET) return res.status(500).json({ error: L(req, 'Servidor sin claves de LiveKit.', 'Server is missing its LiveKit keys.') });
   const isInterpreter = role === 'interpreter';
   if (isInterpreter) {
     const church = await store.getChurchByKey(normKey(key));
-    if (!church || church.id !== r.church_id) return res.status(403).json({ error: 'Se requiere la clave de la iglesia dueña de esta sala.' });
-    const v = churchValid(church);
+    if (!church || church.id !== r.church_id) return res.status(403).json({ error: L(req, 'Se requiere la clave de la iglesia dueña de esta sala.', 'The key of the church that owns this room is required.') });
+    const v = churchValid(church, langOf(req));
     if (!v.ok) return res.status(403).json({ error: v.error });
   }
   const identity = (isInterpreter ? 'interprete-' : 'oyente-') + Math.random().toString(36).slice(2, 9);
@@ -406,15 +416,15 @@ app.get('/api/admin/state', async (req, res) => {
   res.json({ needsSetup: !saved, authed: await isAdmin(req), mailConfigured: !!(await store.getSetting('smtp_user')) });
 });
 app.post('/api/admin/setup', async (req, res) => {
-  if (await store.getSetting('admin_pass')) return res.status(409).json({ error: 'La contraseña ya existe.' });
+  if (await store.getSetting('admin_pass')) return res.status(409).json({ error: L(req, 'La contraseña ya existe.', 'The password already exists.') });
   const pass = String((req.body || {}).password || '');
-  if (pass.length < 10) return res.status(400).json({ error: 'Usa al menos 10 caracteres.' });
+  if (pass.length < 10) return res.status(400).json({ error: L(req, 'Usa al menos 10 caracteres.', 'Use at least 10 characters.') });
   await setAdminPass(pass);
   res.cookie('mm_admin', await sessionToken(), { httpOnly: true, secure: true, sameSite: 'lax', maxAge: 30 * 24 * 3600 * 1000 });
   res.json({ ok: true });
 });
 app.post('/api/admin/login', async (req, res) => {
-  if (!(await checkAdminPass(String((req.body || {}).password || '')))) return res.status(401).json({ error: 'Contraseña incorrecta.' });
+  if (!(await checkAdminPass(String((req.body || {}).password || '')))) return res.status(401).json({ error: L(req, 'Contraseña incorrecta.', 'Incorrect password.') });
   res.cookie('mm_admin', await sessionToken(), { httpOnly: true, secure: true, sameSite: 'lax', maxAge: 30 * 24 * 3600 * 1000 });
   res.json({ ok: true });
 });
@@ -428,7 +438,7 @@ app.get('/api/admin/churches', requireAdmin, async (req, res) => {
 });
 app.post('/api/admin/churches', requireAdmin, async (req, res) => {
   const b = req.body || {};
-  if (!b.name) return res.status(400).json({ error: 'Falta el nombre de la iglesia.' });
+  if (!b.name) return res.status(400).json({ error: L(req, 'Falta el nombre de la iglesia.', 'The church name is missing.') });
   let key = makeCode(8);
   while (await store.getChurchByKey(key)) key = makeCode(8);
   const church = await store.createChurch({
@@ -449,18 +459,18 @@ app.patch('/api/admin/churches/:id', requireAdmin, async (req, res) => {
   if (b.notes !== undefined) data.notes = String(b.notes);
   if (b.regenerateKey) { let k = makeCode(8); while (await store.getChurchByKey(k)) k = makeCode(8); data.key = k; }
   const church = await store.updateChurch(req.params.id, data);
-  if (!church) return res.status(404).json({ error: 'Iglesia no encontrada.' });
+  if (!church) return res.status(404).json({ error: L(req, 'Iglesia no encontrada.', 'Church not found.') });
   res.json({ church: Object.assign({}, church, { key: fmtKey(church.key) }) });
 });
 app.post('/api/admin/churches/:id/welcome', requireAdmin, async (req, res) => {
   const church = await store.getChurch(req.params.id);
-  if (!church) return res.status(404).json({ error: 'Iglesia no encontrada.' });
-  try { await sendWelcome(church); res.json({ ok: true }); }
+  if (!church) return res.status(404).json({ error: L(req, 'Iglesia no encontrada.', 'Church not found.') });
+  try { await sendWelcome(church, langOf(req)); res.json({ ok: true }); }
   catch (e) {
     let m = e.message;
-    if (e.code === 'EGMAILAUTH') m = 'La autorización de Google venció o fue revocada. En el panel, vuelve a conectar tu cuenta de Google.';
-    else if (e.code === 'EAUTH') m = 'Gmail rechazó el usuario o la contraseña. Revisa que la contraseña sea una contraseña de aplicación vigente de esa cuenta.';
-    else if (e.code === 'ETIMEDOUT' || e.code === 'ECONNECTION' || e.code === 'ESOCKET') m = 'No se pudo conectar con el servidor de Gmail (la conexión falló o tardó demasiado). Inténtalo de nuevo en un momento.';
+    if (e.code === 'EGMAILAUTH') m = L(req, 'La autorización de Google venció o fue revocada. En el panel, vuelve a conectar tu cuenta de Google.', 'The Google authorization expired or was revoked. In the panel, reconnect your Google account.');
+    else if (e.code === 'EAUTH') m = L(req, 'Gmail rechazó el usuario o la contraseña. Revisa que la contraseña sea una contraseña de aplicación vigente de esa cuenta.', 'Gmail rejected the user or password. Make sure the password is a current app password for that account.');
+    else if (e.code === 'ETIMEDOUT' || e.code === 'ECONNECTION' || e.code === 'ESOCKET') m = L(req, 'No se pudo conectar con el servidor de Gmail (la conexión falló o tardó demasiado). Inténtalo de nuevo en un momento.', 'Could not connect to the Gmail server (the connection failed or took too long). Try again in a moment.');
     res.status(400).json({ error: m });
   }
 });

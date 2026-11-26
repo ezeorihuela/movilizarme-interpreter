@@ -34,17 +34,21 @@
   .alert { background: #fdf3e3; border: 1px solid #e5c07b; color: #7a5410; border-radius: .6rem; padding: .85rem 1rem; margin: .4rem 0 .9rem; cursor: pointer; font-size: 1.05rem; }
   #ai-text { background: var(--morado-suave); border-radius: .6rem; padding: .7rem 1rem; margin-top: .6rem; }
   .capline { margin: .4rem 0; font-size: 1.08rem; }
+  .langsel { position: absolute; top: .8rem; right: 1rem; font-family: "Fira Sans", sans-serif; font-size: .85rem; color: var(--suave); }
+  .langsel button { background: none; border: 0; padding: .15rem .2rem; font: inherit; color: inherit; cursor: pointer; }
+  .langsel button.on { color: var(--morado-oscuro); font-weight: 700; text-decoration: underline; }
 </style>
 </head>
 <body>
+<div class="langsel"><button type="button" id="lang-es">ES</button>|<button type="button" id="lang-en">EN</button></div>
 <main class="wrap">
-  <p class="brand">MovilizarMe · Interpreter</p>
-  <h1>Consola del intérprete</h1>
+  <p class="brand" id="t-brand">MovilizarMe · Intérprete</p>
+  <h1 id="t-h1">Consola del intérprete</h1>
 
   <div id="step-key">
-    <p>Escribe la clave de tu iglesia o ministerio. Te la enviamos por correo al darte de alta; se recuerda en este equipo.</p>
+    <p id="t-key-intro">Escribe la clave de tu iglesia o ministerio. Te la enviamos por correo al darte de alta; se recuerda en este equipo.</p>
     <p>
-      <label for="key">Clave de tu iglesia</label><br>
+      <label for="key" id="t-key-label">Clave de tu iglesia</label><br>
       <input id="key" type="text" autocomplete="off" autocapitalize="characters" placeholder="XXXX-XXXX" style="font-size:1.3rem;letter-spacing:.15em;text-transform:uppercase;max-width:280px">
     </p>
     <p><button class="btn" id="btn-key">Entrar</button></p>
@@ -52,11 +56,11 @@
   </div>
 
   <div id="step-create" hidden>
-    <p>Crea la sala del servicio. El código se muestra en el proyector y la audiencia lo usa para escuchar.</p>
+    <p id="t-create-intro">Crea la sala del servicio. El código se muestra en el proyector y la audiencia lo usa para escuchar.</p>
     <p>
-      <label for="room-name">Nombre del evento (opcional)</label><br>
+      <label for="room-name" id="t-event-label">Nombre del evento (opcional)</label><br>
       <input id="room-name" type="text" maxlength="80" autocomplete="off" placeholder="Ej.: Servicio dominical, Conferencia, Estudio bíblico" style="max-width:430px">
-      <br><span class="status">El oyente lo verá como título de su ventana.</span>
+      <br><span class="status" id="t-event-help">El oyente lo verá como título de su ventana.</span>
     </p>
     <p><button class="btn" id="btn-create">Crear sala</button>
        <button class="btn sec change-key" type="button">Cambiar clave</button></p>
@@ -65,7 +69,7 @@
 
   <div id="step-room" hidden>
     <section class="panel center">
-      <p class="card-label">Código de sala</p>
+      <p class="card-label" id="t-room-code-lbl">Código de sala</p>
       <p class="code" id="room-code">------</p>
       <p id="room-event" hidden></p>
       <p id="room-church"></p>
@@ -77,51 +81,51 @@
     </section>
 
     <section class="card">
-      <h2 class="card-title">Interpretación</h2>
+      <h2 class="card-title" id="t-card-title">Interpretación</h2>
       <div class="grid2">
         <div class="field">
-          <label for="mic">Micrófono o fuente de audio</label>
+          <label for="mic" id="t-mic-label">Micrófono o fuente de audio</label>
           <select id="mic"></select>
         </div>
         <div class="field">
-          <label for="mode">Modo de interpretación</label>
+          <label for="mode" id="t-mode-label">Modo de interpretación</label>
           <select id="mode">
-            <option value="human">Intérprete humano</option>
-            <option value="ai">Interpretación por IA</option>
+            <option value="human" id="opt-human">Intérprete humano</option>
+            <option value="ai" id="opt-ai">Interpretación por IA</option>
           </select>
         </div>
       </div>
       <div id="ai-box" hidden>
         <div class="langrow">
           <div class="field grow">
-            <label for="ai-src">Se habla</label>
+            <label for="ai-src" id="t-src-label">Se habla</label>
             <select id="ai-src"></select>
           </div>
           <button class="swapbtn" id="btn-swap" type="button" title="Invertir idiomas" aria-label="Invertir idiomas">⇄</button>
           <div class="field grow">
-            <label for="ai-dst">Se interpreta a</label>
+            <label for="ai-dst" id="t-dst-label">Se interpreta a</label>
             <select id="ai-dst"></select>
           </div>
         </div>
         <div class="grid2">
           <div class="field">
-            <label for="ai-voice">Voz de la IA</label>
+            <label for="ai-voice" id="t-voice-label">Voz de la IA</label>
             <select id="ai-voice"></select>
           </div>
           <div class="field">
-            <label for="ai-prof">Filtro de palabras</label>
+            <label for="ai-prof" id="t-prof-label">Filtro de palabras</label>
             <select id="ai-prof">
-              <option value="Masked" selected>Activado: oculta la palabra con asteriscos</option>
-              <option value="Removed">Activado: quita la palabra</option>
-              <option value="Raw">Desactivado</option>
+              <option value="Masked" id="opt-prof-m" selected>Activado: oculta la palabra con asteriscos</option>
+              <option value="Removed" id="opt-prof-r">Activado: quita la palabra</option>
+              <option value="Raw" id="opt-prof-raw">Desactivado</option>
             </select>
           </div>
         </div>
         <div class="alert" id="ai-alert" hidden>El navegador bloqueó el sonido de la IA. <strong>Toca aquí para activarlo.</strong></div>
         <p class="status" id="ai-state" role="status"></p>
         <div id="ai-text" hidden>
-          <p class="capline"><strong>Original:</strong> <span id="ai-orig"></span></p>
-          <p class="capline"><strong>Traducción:</strong> <span id="ai-tran"></span></p>
+          <p class="capline"><strong id="t-cap-orig">Original:</strong> <span id="ai-orig"></span></p>
+          <p class="capline"><strong id="t-cap-tran">Traducción:</strong> <span id="ai-tran"></span></p>
         </div>
       </div>
       <div class="actions">
@@ -132,7 +136,7 @@
       <p class="status" id="status" role="status"></p>
       <p class="status" id="listeners"></p>
       <details id="diag" style="margin-top:1rem">
-        <summary style="cursor:pointer;font-weight:600;color:var(--morado)">Diagnóstico de audio</summary>
+        <summary style="cursor:pointer;font-weight:600;color:var(--morado)" id="t-diag">Diagnóstico de audio</summary>
         <p class="status" id="diag-body" style="white-space:pre-line"></p>
       </details>
       <p class="center" style="margin-bottom:0"><button class="btn sec change-key" type="button">Cambiar clave</button></p>
@@ -144,6 +148,133 @@
   var status = document.getElementById('status');
   var room = null, code = null, roomTitle = '', churchName = '';
   var churchKey = localStorage.getItem('mm-church-key') || '';
+
+  // Idioma de la consola: elección guardada (misma clave que el sitio
+  // movilizar.me), luego el idioma del dispositivo; español por defecto.
+  var STR = {
+    es: {
+      docTitle: 'Consola del intérprete · MovilizarMe',
+      statics: {
+        't-brand': 'MovilizarMe · Intérprete', 't-h1': 'Consola del intérprete',
+        't-key-intro': 'Escribe la clave de tu iglesia o ministerio. Te la enviamos por correo al darte de alta; se recuerda en este equipo.',
+        't-key-label': 'Clave de tu iglesia', 'btn-key': 'Entrar',
+        't-create-intro': 'Crea la sala del servicio. El código se muestra en el proyector y la audiencia lo usa para escuchar.',
+        't-event-label': 'Nombre del evento (opcional)',
+        't-event-help': 'El oyente lo verá como título de su ventana.',
+        'btn-create': 'Crear sala', 't-room-code-lbl': 'Código de sala',
+        'link-projector': 'Pantalla de proyector', 'link-listen': 'Página del oyente', 'btn-img': 'Imagen de la sala',
+        't-card-title': 'Interpretación', 't-mic-label': 'Micrófono o fuente de audio', 't-mode-label': 'Modo de interpretación',
+        'opt-human': 'Intérprete humano', 'opt-ai': 'Interpretación por IA',
+        't-src-label': 'Se habla', 't-dst-label': 'Se interpreta a',
+        't-voice-label': 'Voz de la IA', 't-prof-label': 'Filtro de palabras',
+        'opt-prof-m': 'Activado: oculta la palabra con asteriscos', 'opt-prof-r': 'Activado: quita la palabra', 'opt-prof-raw': 'Desactivado',
+        't-cap-orig': 'Original:', 't-cap-tran': 'Traducción:', 't-diag': 'Diagnóstico de audio', 'btn-end': 'Terminar'
+      },
+      changeKey: 'Cambiar clave',
+      eventPlaceholder: 'Ej.: Servicio dominical, Conferencia, Estudio bíblico',
+      swapTitle: 'Invertir idiomas',
+      aiAlertHTML: 'El navegador bloqueó el sonido de la IA. <strong>Toca aquí para activarlo.</strong>',
+      startHuman: 'Empezar a interpretar', startAi: 'Empezar la interpretación por IA',
+      pauseBtn: 'Pausar: voz original', resumeBtn: 'Reanudar la interpretación',
+      listeners: 'Oyentes conectados: ', micN: 'Micrófono ',
+      connecting: 'Conectando…', creating: 'Creando la sala…',
+      createFail: 'No se pudo crear la sala.', serverDenied: 'el servidor no dio el acceso',
+      aiAccessDenied: 'El servidor no dio el acceso a la IA.',
+      keyLen: 'La clave tiene 8 caracteres (ejemplo: ABCD-2345).',
+      noMic: 'La sala quedó creada, pero este navegador no encontró un micrófono. Prueba en un equipo con micrófono.',
+      liveAi: 'En vivo: la IA está interpretando', liveHuman: 'En vivo: estás interpretando',
+      startFailPre: 'No se pudo empezar (', startFailSuf: '). Revisa el micrófono y la conexión.',
+      imgFail: 'No se pudo generar la imagen.',
+      sdkMissing: 'No se cargó el módulo de voz de Microsoft. Revisa tu conexión a internet y recarga la página.',
+      sameLang: 'El idioma de origen y el de destino deben ser distintos.',
+      askingAi: 'Pidiendo acceso a la IA…',
+      aiActivePre: 'IA activa: ', aiActiveSuf: '. Habla por el micrófono elegido.',
+      aiStoppedPre: 'La IA se detuvo: ', aiStoppedSuf: ' Pulsa Terminar y vuelve a empezar.',
+      azureFailPre: 'Azure no pudo empezar (', azureFailSuf: ').',
+      aiNoPause: 'IA activa, pero la pausa con voz original no está disponible: no se pudo abrir el micrófono por segunda vez.',
+      swapping: 'Cambiando la dirección…',
+      swapFailPre: 'No se pudo cambiar la dirección (', swapFailSuf: '). Pulsa Terminar y vuelve a empezar.',
+      aiSoundOn: 'Sonido de la IA activado. Habla por el micrófono elegido.',
+      aiSoundBlocked: 'El navegador sigue bloqueando el sonido. Recarga la página y vuelve a empezar.',
+      pauseUnavailable: 'La pausa con voz original no está disponible en este equipo.',
+      pausedMsg: 'En pausa: los oyentes escuchan la voz original. La transcripción sigue corriendo.',
+      resumedMsg: 'Interpretación reanudada.',
+      audioSwitchPre: 'No se pudo cambiar el audio (', audioSwitchSuf: ').',
+      dEngine: 'Motor de sonido de la IA: ', dNone: 'sin crear',
+      dAiIn: 'Voz de la IA entrando al mezclador: ', dMicLvl: 'Nivel del micrófono original: ',
+      dAiPub: 'Publicación de la voz IA: ', dMicPub: 'Publicación del micrófono: ',
+      dMuted: 'silenciada', dActive: 'activa', dMissing: 'no existe',
+      voiceAuto: 'Automática de Azure'
+    },
+    en: {
+      docTitle: 'Interpreter console · MovilizarMe',
+      statics: {
+        't-brand': 'MovilizarMe · Interpreter', 't-h1': 'Interpreter console',
+        't-key-intro': 'Type your church or ministry key. We emailed it to you when you signed up; it is remembered on this device.',
+        't-key-label': 'Your church key', 'btn-key': 'Enter',
+        't-create-intro': 'Create the service room. The code is shown on the projector and the audience uses it to listen.',
+        't-event-label': 'Event name (optional)',
+        't-event-help': 'Listeners will see it as the title of their window.',
+        'btn-create': 'Create room', 't-room-code-lbl': 'Room code',
+        'link-projector': 'Projector screen', 'link-listen': 'Listener page', 'btn-img': 'Room image',
+        't-card-title': 'Interpretation', 't-mic-label': 'Microphone or audio source', 't-mode-label': 'Interpretation mode',
+        'opt-human': 'Human interpreter', 'opt-ai': 'AI interpretation',
+        't-src-label': 'Spoken language', 't-dst-label': 'Interpret into',
+        't-voice-label': 'AI voice', 't-prof-label': 'Word filter',
+        'opt-prof-m': 'On: hide the word with asterisks', 'opt-prof-r': 'On: remove the word', 'opt-prof-raw': 'Off',
+        't-cap-orig': 'Original:', 't-cap-tran': 'Translation:', 't-diag': 'Audio diagnostics', 'btn-end': 'End'
+      },
+      changeKey: 'Change key',
+      eventPlaceholder: 'E.g.: Sunday service, Conference, Bible study',
+      swapTitle: 'Swap languages',
+      aiAlertHTML: 'The browser blocked the AI sound. <strong>Tap here to turn it on.</strong>',
+      startHuman: 'Start interpreting', startAi: 'Start AI interpretation',
+      pauseBtn: 'Pause: original voice', resumeBtn: 'Resume interpretation',
+      listeners: 'Listeners connected: ', micN: 'Microphone ',
+      connecting: 'Connecting…', creating: 'Creating the room…',
+      createFail: 'The room could not be created.', serverDenied: 'the server did not grant access',
+      aiAccessDenied: 'The server did not grant AI access.',
+      keyLen: 'The key has 8 characters (example: ABCD-2345).',
+      noMic: 'The room was created, but this browser found no microphone. Try a device with a microphone.',
+      liveAi: 'Live: the AI is interpreting', liveHuman: 'Live: you are interpreting',
+      startFailPre: 'Could not start (', startFailSuf: '). Check the microphone and the connection.',
+      imgFail: 'The image could not be generated.',
+      sdkMissing: 'The Microsoft speech module did not load. Check your internet connection and reload the page.',
+      sameLang: 'The source and target languages must be different.',
+      askingAi: 'Requesting AI access…',
+      aiActivePre: 'AI on: ', aiActiveSuf: '. Speak into the selected microphone.',
+      aiStoppedPre: 'The AI stopped: ', aiStoppedSuf: ' Press End and start again.',
+      azureFailPre: 'Azure could not start (', azureFailSuf: ').',
+      aiNoPause: 'AI is on, but the original-voice pause is not available: the microphone could not be opened a second time.',
+      swapping: 'Swapping direction…',
+      swapFailPre: 'The direction could not be swapped (', swapFailSuf: '). Press End and start again.',
+      aiSoundOn: 'AI sound is on. Speak into the selected microphone.',
+      aiSoundBlocked: 'The browser is still blocking the sound. Reload the page and start again.',
+      pauseUnavailable: 'The original-voice pause is not available on this device.',
+      pausedMsg: 'Paused: listeners hear the original voice. The transcript keeps running.',
+      resumedMsg: 'Interpretation resumed.',
+      audioSwitchPre: 'The audio could not be switched (', audioSwitchSuf: ').',
+      dEngine: 'AI sound engine: ', dNone: 'not created',
+      dAiIn: 'AI voice entering the mixer: ', dMicLvl: 'Original microphone level: ',
+      dAiPub: 'AI voice publication: ', dMicPub: 'Microphone publication: ',
+      dMuted: 'muted', dActive: 'active', dMissing: 'missing',
+      voiceAuto: 'Azure automatic'
+    }
+  };
+  var LANG = (function () {
+    try {
+      var saved = localStorage.getItem('mm-lang');
+      if (saved === 'es' || saved === 'en') return saved;
+    } catch (e) {}
+    return (navigator.language || 'es').toLowerCase().indexOf('en') === 0 ? 'en' : 'es';
+  })();
+  var L = STR[LANG];
+  function voiceLabel(t) {
+    if (LANG !== 'en') return t;
+    return t.replace('mujer', 'female').replace('hombre', 'male').replace('México', 'Mexico')
+      .replace('EE. UU.', 'USA').replace('España', 'Spain').replace('Brasil', 'Brazil')
+      .replace('Francia', 'France').replace('Alemania', 'Germany').replace('Italia', 'Italy').replace('Corea', 'Korea');
+  }
 
   function setStatus(t, isError) {
     status.textContent = t || '';
@@ -159,7 +290,7 @@
         if (p.identity && p.identity.indexOf('oyente-') === 0) n++;
       });
       document.getElementById('listeners').textContent =
-        'Oyentes conectados: ' + n;
+        L.listeners + n;
     }
   }
   function showStep(id) {
@@ -169,11 +300,11 @@
   }
 
   // ---------------- Modo IA (Azure Speech Translation) ----------------
-  var LANGS = [
-    ['es', 'Español'], ['en', 'Inglés'], ['pt', 'Portugués'], ['fr', 'Francés'],
-    ['de', 'Alemán'], ['it', 'Italiano'], ['zh-Hans', 'Chino simplificado'],
-    ['ko', 'Coreano'], ['ht', 'Criollo haitiano']
-  ];
+  var LANGS_I18N = {
+    es: [['es', 'Español'], ['en', 'Inglés'], ['pt', 'Portugués'], ['fr', 'Francés'], ['de', 'Alemán'], ['it', 'Italiano'], ['zh-Hans', 'Chino simplificado'], ['ko', 'Coreano'], ['ht', 'Criollo haitiano']],
+    en: [['es', 'Spanish'], ['en', 'English'], ['pt', 'Portuguese'], ['fr', 'French'], ['de', 'German'], ['it', 'Italian'], ['zh-Hans', 'Simplified Chinese'], ['ko', 'Korean'], ['ht', 'Haitian Creole']]
+  };
+  var LANGS = LANGS_I18N[LANG];
   // Idioma de reconocimiento que entiende Azure para cada idioma de la lista.
   var RECOG = { 'es': 'es-MX', 'en': 'en-US', 'pt': 'pt-BR', 'fr': 'fr-FR', 'de': 'de-DE', 'it': 'it-IT', 'zh-Hans': 'zh-CN', 'ko': 'ko-KR', 'ht': 'ht-HT' };
   // Voz de la IA por idioma de destino. El criollo haitiano no tiene voz en
@@ -199,13 +330,13 @@
     sel.innerHTML = '';
     if (!opts.length) {
       var o = document.createElement('option');
-      o.value = ''; o.textContent = 'Automática de Azure';
+      o.value = ''; o.textContent = L.voiceAuto;
       sel.appendChild(o);
       return;
     }
     opts.forEach(function (pair) {
       var o = document.createElement('option');
-      o.value = pair[0]; o.textContent = pair[1];
+      o.value = pair[0]; o.textContent = voiceLabel(pair[1]);
       sel.appendChild(o);
     });
   }
@@ -236,15 +367,15 @@
       var el = document.getElementById('diag-body');
       if (!el || !det || !det.open) return;
       var lines = [];
-      lines.push('Motor de sonido de la IA: ' + (ai.ctx ? ai.ctx.state : 'sin crear'));
+      lines.push(L.dEngine + (ai.ctx ? ai.ctx.state : L.dNone));
       if (ai.dest && !diagAiMeter) diagAiMeter = makeMeter(ai.dest.stream);
-      if (diagAiMeter) lines.push('Voz de la IA entrando al mezclador: ' + diagAiMeter() + '%');
+      if (diagAiMeter) lines.push(L.dAiIn + diagAiMeter() + '%');
       if (ai.micPub && ai.micPub.track && !diagMicMeter) {
         try { diagMicMeter = makeMeter(new MediaStream([ai.micPub.track.mediaStreamTrack])); } catch (e) {}
       }
-      if (diagMicMeter) lines.push('Nivel del micrófono original: ' + diagMicMeter() + '%');
-      lines.push('Publicación de la voz IA: ' + (ai.aiPub ? (ai.aiPub.isMuted ? 'silenciada' : 'activa') : 'no existe'));
-      lines.push('Publicación del micrófono: ' + (ai.micPub ? (ai.micPub.isMuted ? 'silenciada' : 'activa') : 'no existe'));
+      if (diagMicMeter) lines.push(L.dMicLvl + diagMicMeter() + '%');
+      lines.push(L.dAiPub + (ai.aiPub ? (ai.aiPub.isMuted ? L.dMuted : L.dActive) : L.dMissing));
+      lines.push(L.dMicPub + (ai.micPub ? (ai.micPub.isMuted ? L.dMuted : L.dActive) : L.dMissing));
       el.textContent = lines.join('\n');
     }, 500);
   }
@@ -262,16 +393,25 @@
   // si eliges en uno el idioma del otro, el otro toma el valor anterior.
   var srcSel = document.getElementById('ai-src');
   var dstSel = document.getElementById('ai-dst');
-  LANGS.forEach(function (l) {
-    [srcSel, dstSel].forEach(function (sel) {
-      var opt = document.createElement('option');
-      opt.value = l[0]; opt.textContent = l[1];
-      sel.appendChild(opt);
-    });
-  });
-  srcSel.value = 'en'; dstSel.value = 'es';
-  fillVoices();
   var lastSrc = 'en', lastDst = 'es';
+  function fillLangSelects() {
+    var sv = srcSel.value || 'en', dv = dstSel.value || 'es';
+    LANGS = LANGS_I18N[LANG];
+    [srcSel, dstSel].forEach(function (sel) { sel.innerHTML = ''; });
+    LANGS.forEach(function (l) {
+      [srcSel, dstSel].forEach(function (sel) {
+        var opt = document.createElement('option');
+        opt.value = l[0]; opt.textContent = l[1];
+        sel.appendChild(opt);
+      });
+    });
+    srcSel.value = sv; dstSel.value = dv;
+    lastSrc = sv; lastDst = dv;
+  }
+  fillLangSelects();
+  srcSel.value = 'en'; dstSel.value = 'es';
+  lastSrc = 'en'; lastDst = 'es';
+  fillVoices();
   srcSel.addEventListener('change', function () {
     if (srcSel.value === dstSel.value) dstSel.value = lastSrc;
     lastSrc = srcSel.value; lastDst = dstSel.value;
@@ -281,20 +421,48 @@
     lastSrc = srcSel.value; lastDst = dstSel.value;
     fillVoices();
   });
+  function startLabel() { return document.getElementById('mode').value === 'ai' ? L.startAi : L.startHuman; }
+  function setLang(l) {
+    LANG = l; L = STR[l];
+    try { localStorage.setItem('mm-lang', l); } catch (e) {}
+    document.documentElement.lang = l;
+    document.title = L.docTitle;
+    Object.keys(L.statics).forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = L.statics[id];
+    });
+    document.querySelectorAll('.change-key').forEach(function (b) { b.textContent = L.changeKey; });
+    document.getElementById('room-name').placeholder = L.eventPlaceholder;
+    var sw = document.getElementById('btn-swap');
+    sw.title = L.swapTitle; sw.setAttribute('aria-label', L.swapTitle);
+    document.getElementById('ai-alert').innerHTML = L.aiAlertHTML;
+    var bs = document.getElementById('btn-start');
+    if (!bs.hidden) bs.textContent = startLabel();
+    document.getElementById('btn-pause').textContent = ai.paused ? L.resumeBtn : L.pauseBtn;
+    fillLangSelects();
+    fillVoices();
+    if (room) updateListeners();
+    document.getElementById('lang-es').className = l === 'es' ? 'on' : '';
+    document.getElementById('lang-en').className = l === 'en' ? 'on' : '';
+  }
+  document.getElementById('lang-es').addEventListener('click', function () { setLang('es'); });
+  document.getElementById('lang-en').addEventListener('click', function () { setLang('en'); });
+  setLang(LANG);
+
   document.getElementById('mode').addEventListener('change', function () {
     var esIa = this.value === 'ai';
     document.getElementById('ai-box').hidden = !esIa;
-    document.getElementById('btn-start').textContent = esIa ? 'Empezar la interpretación por IA' : 'Empezar a interpretar';
+    document.getElementById('btn-start').textContent = startLabel();
   });
 
   function pedirTokenAzure() {
     return fetch(window.MM.api + '/api/azure/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ room: code, key: churchKey })
+      body: JSON.stringify({ room: code, key: churchKey, lang: LANG })
     }).then(function (res) {
       return res.json().then(function (data) {
-        if (!res.ok) throw new Error(data.error || 'El servidor no dio el acceso a la IA.');
+        if (!res.ok) throw new Error(data.error || L.aiAccessDenied);
         return data;
       });
     });
@@ -377,23 +545,23 @@
       rec.synthesizing = function (s, e) { if (e.result) feedPcm(e.result.audio); };
       rec.canceled = function (s, e) {
         if (e.reason === SpeechSDK.CancellationReason.Error) {
-          setAiState('La IA se detuvo: ' + (e.errorDetails || 'error de Azure') + ' Pulsa Terminar y vuelve a empezar.', true);
+          setAiState(L.aiStoppedPre + (e.errorDetails || 'error de Azure') + L.aiStoppedSuf, true);
         }
       };
       rec.startContinuousRecognitionAsync(function () {
-        setAiState('IA activa: ' + langName(src) + ' → ' + langName(dst) + '. Habla por el micrófono elegido.');
+        setAiState(L.aiActivePre + langName(src) + ' → ' + langName(dst) + L.aiActiveSuf);
         startTokenRefresh();
         resolve();
       }, function (err) {
-        reject(new Error('Azure no pudo empezar (' + err + ').'));
+        reject(new Error(L.azureFailPre + err + L.azureFailSuf));
       });
     });
   }
   async function startAi() {
-    if (!window.SpeechSDK) throw new Error('No se cargó el módulo de voz de Microsoft. Revisa tu conexión a internet y recarga la página.');
+    if (!window.SpeechSDK) throw new Error(L.sdkMissing);
     var src = srcSel.value, dst = dstSel.value;
-    if (src === dst) throw new Error('El idioma de origen y el de destino deben ser distintos.');
-    setAiState('Pidiendo acceso a la IA…');
+    if (src === dst) throw new Error(L.sameLang);
+    setAiState(L.askingAi);
     var data = await pedirTokenAzure();
     if (!ai.ctx) {
       var AC = window.AudioContext || window.webkitAudioContext;
@@ -440,7 +608,7 @@
     if (ai.ctx.state !== 'running') {
       document.getElementById('ai-alert').hidden = false;
     } else if (!ai.micPub) {
-      setAiState('IA activa, pero la pausa con voz original no está disponible: no se pudo abrir el micrófono por segunda vez.');
+      setAiState(L.aiNoPause);
     }
     document.getElementById('ai-text').hidden = false;
     document.getElementById('mode').disabled = true;
@@ -469,7 +637,7 @@
     }
     var btn = this; btn.disabled = true;
     var nuevoSrc = dstSel.value, nuevoDst = srcSel.value;
-    setAiState('Cambiando la dirección…');
+    setAiState(L.swapping);
     try {
       await new Promise(function (resolve) { ai.rec.stopContinuousRecognitionAsync(resolve, resolve); });
       try { ai.rec.close(); } catch (e) {}
@@ -482,7 +650,7 @@
       ai.nextTime = 0;
       await startRecognizer(data.token, data.region, nuevoSrc, nuevoDst);
     } catch (e) {
-      setAiState('No se pudo cambiar la dirección (' + (e && e.message ? e.message : e) + '). Pulsa Terminar y vuelve a empezar.', true);
+      setAiState(L.swapFailPre + (e && e.message ? e.message : e) + L.swapFailSuf, true);
     }
     btn.disabled = false;
   });
@@ -494,9 +662,9 @@
     try { await ai.ctx.resume(); } catch (e) {}
     if (ai.ctx.state === 'running') {
       this.hidden = true;
-      setAiState('Sonido de la IA activado. Habla por el micrófono elegido.');
+      setAiState(L.aiSoundOn);
     } else {
-      setAiState('El navegador sigue bloqueando el sonido. Recarga la página y vuelve a empezar.', true);
+      setAiState(L.aiSoundBlocked, true);
     }
   });
 
@@ -505,24 +673,24 @@
   // el servicio se interrumpa. La transcripción sigue corriendo.
   document.getElementById('btn-pause').addEventListener('click', async function () {
     if (!ai.live) return;
-    if (!ai.micPub || !ai.aiPub) { setAiState('La pausa con voz original no está disponible en este equipo.', true); return; }
+    if (!ai.micPub || !ai.aiPub) { setAiState(L.pauseUnavailable, true); return; }
     var btn = this; btn.disabled = true;
     try {
       if (!ai.paused) {
         await ai.aiPub.mute();
         await ai.micPub.unmute();
         ai.paused = true;
-        btn.textContent = 'Reanudar la interpretación';
-        setAiState('En pausa: los oyentes escuchan la voz original. La transcripción sigue corriendo.');
+        btn.textContent = L.resumeBtn;
+        setAiState(L.pausedMsg);
       } else {
         await ai.micPub.mute();
         await ai.aiPub.unmute();
         ai.paused = false;
-        btn.textContent = 'Pausar: voz original';
-        setAiState('Interpretación reanudada.');
+        btn.textContent = L.pauseBtn;
+        setAiState(L.resumedMsg);
       }
     } catch (e) {
-      setAiState('No se pudo cambiar el audio (' + (e && e.message ? e.message : e) + ').', true);
+      setAiState(L.audioSwitchPre + (e && e.message ? e.message : e) + L.audioSwitchSuf, true);
     }
     btn.disabled = false;
   });
@@ -532,7 +700,7 @@
   document.getElementById('btn-key').addEventListener('click', function () {
     var v = document.getElementById('key').value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
     var ks = document.getElementById('key-status');
-    if (v.length < 8) { ks.textContent = 'La clave tiene 8 caracteres (ejemplo: ABCD-2345).'; ks.className = 'status error'; return; }
+    if (v.length < 8) { ks.textContent = L.keyLen; ks.className = 'status error'; return; }
     churchKey = v;
     localStorage.setItem('mm-church-key', v);
     ks.textContent = '';
@@ -549,15 +717,15 @@
     var btn = this;
     var cs = document.getElementById('create-status');
     btn.disabled = true;
-    cs.textContent = 'Creando la sala…'; cs.className = 'status';
+    cs.textContent = L.creating; cs.className = 'status';
     try {
       var res = await fetch(window.MM.api + '/api/room', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: churchKey, name: document.getElementById('room-name').value })
+        body: JSON.stringify({ key: churchKey, name: document.getElementById('room-name').value, lang: LANG })
       });
       var data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'No se pudo crear la sala.');
+      if (!res.ok) throw new Error(data.error || L.createFail);
       code = data.room;
       roomTitle = data.title || '';
       document.getElementById('room-code').textContent = code;
@@ -575,7 +743,7 @@
           s.getTracks().forEach(function (t) { t.stop(); });
         });
       } catch (micErr) {
-        setStatus('La sala quedó creada, pero este navegador no encontró un micrófono. Prueba en un equipo con micrófono.', true);
+        setStatus(L.noMic, true);
         return;
       }
       var devices = await navigator.mediaDevices.enumerateDevices();
@@ -583,13 +751,13 @@
       devices.filter(function (d) { return d.kind === 'audioinput'; }).forEach(function (d, i) {
         var opt = document.createElement('option');
         opt.value = d.deviceId;
-        opt.textContent = d.label || ('Micrófono ' + (i + 1));
+        opt.textContent = d.label || (L.micN + (i + 1));
         sel.appendChild(opt);
       });
     } catch (e) {
       cs.textContent = e.message; cs.className = 'status error';
       btn.disabled = false;
-      if (/clave|suscripción|prueba/i.test(e.message)) showStep('step-key');
+      if (/clave|suscripción|prueba|key|subscription|trial/i.test(e.message)) showStep('step-key');
     }
   });
 
@@ -597,7 +765,7 @@
     var btn = this;
     btn.disabled = true;
     try {
-      setStatus('Conectando…');
+      setStatus(L.connecting);
       if (!diagCtx) { try { var ACD = window.AudioContext || window.webkitAudioContext; diagCtx = new ACD(); diagCtx.resume(); } catch (e) {} }
       if (document.getElementById('mode').value === 'ai' && !ai.ctx) {
         // El contexto de audio se crea AQUÍ, dentro del toque del botón:
@@ -619,10 +787,10 @@
         var res = await fetch(window.MM.api + '/api/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ room: code, role: 'interpreter', key: churchKey })
+          body: JSON.stringify({ room: code, role: 'interpreter', key: churchKey, lang: LANG })
         });
         var data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'el servidor no dio el acceso');
+        if (!res.ok) throw new Error(data.error || L.serverDenied);
         room = new LivekitClient.Room();
         room.on('participantConnected', updateListeners);
         room.on('participantDisconnected', updateListeners);
@@ -633,7 +801,7 @@
         // traducida. El micrófono local no se publica en la sala.
         await startAi();
         setStatus('');
-        status.innerHTML = '<span class="pulse on"></span><strong>En vivo: la IA está interpretando</strong>';
+        status.innerHTML = '<span class="pulse on"></span><strong>' + L.liveAi + '</strong>';
       } else {
         // Micrófono: primero el elegido; si el navegador lo rechaza
         // (pasa en iPad con el identificador del dispositivo), se reintenta
@@ -654,14 +822,14 @@
           }
         }
         setStatus('');
-        status.innerHTML = '<span class="pulse on"></span><strong>En vivo: estás interpretando</strong>';
+        status.innerHTML = '<span class="pulse on"></span><strong>' + L.liveHuman + '</strong>';
       }
       btn.hidden = true;
       document.getElementById('btn-end').hidden = false;
       updateListeners();
       startDiag();
     } catch (e) {
-      setStatus('No se pudo empezar (' + (e && e.message ? e.message : e) + '). Revisa el micrófono y la conexión.', true);
+      setStatus(L.startFailPre + (e && e.message ? e.message : e) + L.startFailSuf, true);
       btn.disabled = false;
     }
   });
@@ -686,7 +854,7 @@
     var F = '"Fira Sans","Open Sans",sans-serif';
     function deliver() {
       cv.toBlob(function (blob) {
-        if (!blob) { setStatus('No se pudo generar la imagen.', true); return; }
+        if (!blob) { setStatus(L.imgFail, true); return; }
         var name = 'interpretacion-' + code + '.png';
         var file = null;
         try { file = new File([blob], name, { type: 'image/png' }); } catch (e) { file = null; }

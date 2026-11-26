@@ -24,11 +24,15 @@
   .playbtn[disabled] { opacity: .5; }
   .playbtn.stop { background: #fff; color: var(--morado); box-shadow: inset 0 0 0 .18rem var(--morado); padding-left: 0; font-size: 2.1rem; }
   .playlbl { font-weight: 700; color: var(--morado-oscuro); font-size: 1.15rem; margin: .1rem 0 0; }
+  .langsel { position: absolute; top: .8rem; right: 1rem; font-family: "Fira Sans", sans-serif; font-size: .85rem; color: var(--suave); }
+  .langsel button { background: none; border: 0; padding: .15rem .2rem; font: inherit; color: inherit; cursor: pointer; }
+  .langsel button.on { color: var(--morado-oscuro); font-weight: 700; text-decoration: underline; }
 </style>
 </head>
 <body>
+<div class="langsel"><button type="button" id="lang-es">ES</button>|<button type="button" id="lang-en">EN</button></div>
 <main class="wrap center">
-  <p class="brand">MovilizarMe · Interpretación en vivo</p>
+  <p class="brand" id="t-brand">MovilizarMe · Interpretación en vivo</p>
   <h1 id="t-title">Escucha la interpretación</h1>
   <p id="t-intro">Escribe el código de sala que se ve en la pantalla y toca Escuchar.</p>
 
@@ -50,37 +54,84 @@
     <p class="playlbl" id="t-stop-lbl">Detener</p>
   </div>
   <details id="diag" style="margin-top:1.2rem;text-align:left;max-width:42rem;margin-left:auto;margin-right:auto">
-    <summary style="cursor:pointer;font-weight:600">Diagnóstico de audio</summary>
+    <summary style="cursor:pointer;font-weight:600" id="t-diag">Diagnóstico de audio</summary>
     <p class="status" id="diag-body" style="white-space:pre-line"></p>
   </details>
   <p class="status" id="t-tip">Usa audífonos para escuchar mejor. Puedes bloquear tu teléfono; el audio sigue.</p>
 </main>
 <script>
 (function () {
-  var EN = (navigator.language || 'es').toLowerCase().indexOf('en') === 0;
-  if (EN) {
-    document.documentElement.lang = 'en';
-    document.title = 'Listen to the interpretation · MovilizarMe';
-    var T = {
+  // Idioma: primero la elección guardada (la misma clave que usa el sitio
+  // movilizar.me), luego el idioma del dispositivo; español por defecto.
+  var STR = {
+    es: {
+      docTitle: 'Escuchar interpretación · MovilizarMe',
+      't-brand': 'MovilizarMe · Interpretación en vivo',
+      't-title': 'Escucha la interpretación',
+      't-intro': 'Escribe el código de sala que se ve en la pantalla y toca Escuchar.',
+      't-listen-lbl': 'Escuchar',
+      't-live': 'Estás escuchando en vivo',
+      't-stop-lbl': 'Detener',
+      't-tip': 'Usa audífonos para escuchar mejor. Puedes bloquear tu teléfono; el audio sigue.',
+      't-diag': 'Diagnóstico de audio',
+      roomLabel: 'Código de sala', listenLabel: 'Escuchar', stopLabel: 'Detener',
+      connecting: 'Conectando…',
+      waiting: 'Conectado. Esperando a que el intérprete comience…',
+      needCode: 'Escribe el código de sala de 6 letras.',
+      badRoom: 'No se encontró esa sala. Revisa el código en la pantalla.',
+      failed: 'No se pudo conectar. Inténtalo de nuevo.',
+      dConn: 'Conexión: ', dNoRoom: 'sin sala',
+      dTracks: 'Pistas de audio recibidas: ',
+      dTrack: 'Pista ', dMuted: 'silenciada por el emisor', dActive: 'activa', dLevel: ' · Nivel: '
+    },
+    en: {
+      docTitle: 'Listen to the interpretation · MovilizarMe',
+      't-brand': 'MovilizarMe · Live interpretation',
       't-title': 'Listen to the interpretation',
       't-intro': 'Type the room code shown on the screen and tap Listen.',
       't-listen-lbl': 'Listen',
       't-live': 'You are listening live',
       't-stop-lbl': 'Stop',
-      't-tip': 'Headphones work best. You can lock your phone; the audio keeps playing.'
-    };
-    Object.keys(T).forEach(function (id) {
-      var el = document.getElementById(id);
-      if (el) el.textContent = T[id];
-    });
-  }
-  var msg = {
-    connecting: EN ? 'Connecting…' : 'Conectando…',
-    waiting: EN ? 'Connected. Waiting for the interpreter to start…' : 'Conectado. Esperando a que el intérprete comience…',
-    needCode: EN ? 'Type the 6-letter room code.' : 'Escribe el código de sala de 6 letras.',
-    badRoom: EN ? 'That room was not found. Check the code on the screen.' : 'No se encontró esa sala. Revisa el código en la pantalla.',
-    failed: EN ? 'Could not connect. Try again.' : 'No se pudo conectar. Inténtalo de nuevo.'
+      't-tip': 'Headphones work best. You can lock your phone; the audio keeps playing.',
+      't-diag': 'Audio diagnostics',
+      roomLabel: 'Room code', listenLabel: 'Listen', stopLabel: 'Stop',
+      connecting: 'Connecting…',
+      waiting: 'Connected. Waiting for the interpreter to start…',
+      needCode: 'Type the 6-letter room code.',
+      badRoom: 'That room was not found. Check the code on the screen.',
+      failed: 'Could not connect. Try again.',
+      dConn: 'Connection: ', dNoRoom: 'no room',
+      dTracks: 'Audio tracks received: ',
+      dTrack: 'Track ', dMuted: 'muted by the sender', dActive: 'active', dLevel: ' · Level: '
+    }
   };
+  var LANG = (function () {
+    try {
+      var saved = localStorage.getItem('mm-lang');
+      if (saved === 'es' || saved === 'en') return saved;
+    } catch (e) {}
+    return (navigator.language || 'es').toLowerCase().indexOf('en') === 0 ? 'en' : 'es';
+  })();
+  var msg = STR[LANG];
+  function setLang(l) {
+    LANG = l; msg = STR[l];
+    try { localStorage.setItem('mm-lang', l); } catch (e) {}
+    document.documentElement.lang = l;
+    document.title = msg.docTitle;
+    ['t-brand', 't-title', 't-intro', 't-listen-lbl', 't-live', 't-stop-lbl', 't-tip', 't-diag'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = msg[id];
+    });
+    var roomInput = document.getElementById('room');
+    if (roomInput) roomInput.setAttribute('aria-label', msg.roomLabel);
+    var bl = document.getElementById('btn-listen');
+    if (bl) bl.setAttribute('aria-label', msg.listenLabel);
+    var bs = document.getElementById('btn-stop');
+    if (bs) bs.setAttribute('aria-label', msg.stopLabel);
+    document.getElementById('lang-es').className = l === 'es' ? 'on' : '';
+    document.getElementById('lang-en').className = l === 'en' ? 'on' : '';
+    if (typeof updateDiag === 'function') updateDiag();
+  }
   var status = document.getElementById('status');
   var input = document.getElementById('room');
   var params = new URLSearchParams(location.search);
@@ -111,9 +162,9 @@
     var det = document.getElementById('diag');
     var el = document.getElementById('diag-body');
     if (!el || !det || !det.open) return;
-    var lines = ['Conexión: ' + (room ? room.state : 'sin sala'), 'Pistas de audio recibidas: ' + diagTracks.length];
+    var lines = [msg.dConn + (room ? room.state : msg.dNoRoom), msg.dTracks + diagTracks.length];
     diagTracks.forEach(function (d, i) {
-      lines.push('Pista ' + (i + 1) + ': ' + (d.track.isMuted ? 'silenciada por el emisor' : 'activa') + ' · Nivel: ' + d.meter() + '%');
+      lines.push(msg.dTrack + (i + 1) + ': ' + (d.track.isMuted ? msg.dMuted : msg.dActive) + msg.dLevel + d.meter() + '%');
     });
     el.textContent = lines.join('\n');
   }
@@ -135,6 +186,10 @@
     status.textContent = text || '';
     status.className = 'status' + (isError ? ' error' : '');
   }
+
+  document.getElementById('lang-es').addEventListener('click', function () { setLang('es'); });
+  document.getElementById('lang-en').addEventListener('click', function () { setLang('en'); });
+  setLang(LANG);
 
   document.getElementById('btn-listen').addEventListener('click', async function () {
     var code = input.value.trim().toUpperCase();

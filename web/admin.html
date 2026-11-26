@@ -47,20 +47,24 @@
   .state.note{display:block;background:#f4f1fa;color:#453a63;border:1px solid #d8d2ea;font-weight:500}
   input:disabled{background:#f1eef7;color:#6d6486}
   dialog{border:1px solid #e6e2ef;border-radius:.625rem;max-width:420px;width:92%}
+  .langsel{float:right;font-family:"Fira Sans",sans-serif;font-size:.85rem;color:#6d6486}
+  .langsel button{background:none;border:0;padding:.15rem .2rem;font:inherit;color:inherit;cursor:pointer}
+  .langsel button.on{color:#2b2140;font-weight:700;text-decoration:underline}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <p class="kicker">MovilizarMe · Interpretación en vivo</p>
-  <h1>Panel de administración</h1>
+  <div class="langsel"><button type="button" id="lang-es">ES</button>|<button type="button" id="lang-en">EN</button></div>
+  <p class="kicker" id="t-kicker">MovilizarMe · Interpretación en vivo</p>
+  <h1 id="t-h1">Panel de administración</h1>
 
   <div id="auth" class="card" hidden>
     <h2 id="auth-title">Entrar</h2>
     <p id="auth-help" class="mini"></p>
-    <label>Contraseña del panel
+    <label><span id="t-pass-lbl">Contraseña del panel</span>
       <input type="password" id="pass" autocomplete="current-password">
     </label>
-    <label id="pass2-label" hidden>Repite la contraseña
+    <label id="pass2-label" hidden><span id="t-pass2-lbl">Repite la contraseña</span>
       <input type="password" id="pass2" autocomplete="new-password">
     </label>
     <p class="msg" id="auth-msg"></p>
@@ -69,65 +73,65 @@
 
   <div id="dash" hidden>
     <div class="stats">
-      <div class="stat"><b id="st-churches">0</b><span>Iglesias registradas</span></div>
-      <div class="stat"><b id="st-rooms">0</b><span>Salas activas ahora</span></div>
-      <div class="stat"><b id="st-listen">0</b><span>Minutos de oyentes (mes)</span></div>
-      <div class="stat"><b id="st-total">0</b><span>Minutos totales (mes)</span></div>
+      <div class="stat"><b id="st-churches">0</b><span id="t-stat-1">Iglesias registradas</span></div>
+      <div class="stat"><b id="st-rooms">0</b><span id="t-stat-2">Salas activas ahora</span></div>
+      <div class="stat"><b id="st-listen">0</b><span id="t-stat-3">Minutos de oyentes (mes)</span></div>
+      <div class="stat"><b id="st-total">0</b><span id="t-stat-4">Minutos totales (mes)</span></div>
     </div>
-    <p class="mini" style="margin:.55rem 0 0">Plan gratuito de LiveKit: 5,000 minutos de participante al mes entre todas las iglesias.</p>
+    <p class="mini" id="t-plan-note" style="margin:.55rem 0 0">Plan gratuito de LiveKit: 5,000 minutos de participante al mes entre todas las iglesias.</p>
 
     <div class="card">
-      <h2>Iglesias y ministerios</h2>
+      <h2 id="t-h-churches">Iglesias y ministerios</h2>
       <p class="msg" id="msg"></p>
       <div style="overflow-x:auto">
       <table>
         <colgroup><col style="width:24%"><col style="width:15%"><col style="width:26%"><col style="width:15%"><col style="width:20%"></colgroup>
-        <thead><tr><th>Iglesia</th><th>Clave</th><th>Estatus</th><th>Uso este mes</th><th>Acciones</th></tr></thead>
+        <thead><tr><th id="th-1">Iglesia</th><th id="th-2">Clave</th><th id="th-3">Estatus</th><th id="th-4">Uso este mes</th><th id="th-5">Acciones</th></tr></thead>
         <tbody id="tbody"></tbody>
       </table>
       </div>
-      <p class="mini">El contador suma los minutos de cada participante conectado (así cobra LiveKit). "Oyentes" es el desglose de quienes solo escuchan.</p>
+      <p class="mini" id="t-usage-note">El contador suma los minutos de cada participante conectado (así cobra LiveKit). "Oyentes" es el desglose de quienes solo escuchan.</p>
     </div>
 
     <div class="card">
-      <h2>Salas activas</h2>
+      <h2 id="t-h-rooms">Salas activas</h2>
       <ul id="rooms"></ul>
     </div>
 
     <div class="card">
-      <h2>Agregar iglesia</h2>
+      <h2 id="t-h-add">Agregar iglesia</h2>
       <div class="row cols3">
-        <label>Nombre de la iglesia *<input id="f-name" type="text"></label>
-        <label>Persona de contacto<input id="f-contact" type="text"></label>
-        <label>Correo<input id="f-email" type="email"></label>
-        <label>Estatus
+        <label><span id="f-lbl-1">Nombre de la iglesia *</span><input id="f-name" type="text"></label>
+        <label><span id="f-lbl-2">Persona de contacto</span><input id="f-contact" type="text"></label>
+        <label><span id="f-lbl-3">Correo</span><input id="f-email" type="email"></label>
+        <label><span id="f-lbl-4">Estatus</span>
           <select id="f-status">
-            <option value="trial">Prueba (trial)</option>
-            <option value="active">Activa</option>
-            <option value="suspended">Suspendida</option>
+            <option value="trial" id="fo-trial">Prueba (trial)</option>
+            <option value="active" id="fo-active">Activa</option>
+            <option value="suspended" id="fo-suspended">Suspendida</option>
           </select>
         </label>
-        <label>Fin de la prueba<input id="f-trial" type="date"></label>
-        <label>Notas<input id="f-notes" type="text"></label>
+        <label><span id="f-lbl-5">Fin de la prueba</span><input id="f-trial" type="date"></label>
+        <label><span id="f-lbl-6">Notas</span><input id="f-notes" type="text"></label>
       </div>
       <button class="btn" id="create">Crear y generar clave</button>
       <p class="msg" id="create-msg"></p>
     </div>
 
     <div class="card">
-      <h2>Correo de bienvenida</h2>
-      <p class="mini">El panel envía la clave de cada iglesia por correo. La vía que funciona en este servidor es tu cuenta de Google conectada (Gmail por HTTPS), porque el plan gratuito del servidor bloquea el correo SMTP tradicional.</p>
+      <h2 id="t-h-mail">Correo de bienvenida</h2>
+      <p class="mini" id="t-gmail-intro">El panel envía la clave de cada iglesia por correo. La vía que funciona en este servidor es tu cuenta de Google conectada (Gmail por HTTPS), porque el plan gratuito del servidor bloquea el correo SMTP tradicional.</p>
       <div class="btnrow">
         <a class="btn" id="gmail-connect" href="/api/admin/google/connect">Conectar mi cuenta de Google</a>
         <button class="btn secondary" id="gmail-disconnect" hidden>Desconectar</button>
       </div>
       <p class="state" id="gmail-state"></p>
       <hr style="border:none;border-top:1px solid #eee;margin:1.2rem 0">
-      <h3 style="margin:.2rem 0 .4rem">Respaldo por SMTP</h3>
-      <p class="mini">Alternativa clásica: correo de envío y una contraseña de aplicación de Google (se crea en myaccount.google.com/apppasswords). Queda guardada solo en tu base de datos. Una vez guardado, los campos quedan bloqueados: para cambiarlos usa Editar, con doble confirmación. En este servidor el SMTP está bloqueado, así que este respaldo solo sirve si el servidor se mueve a un plan sin bloqueo.</p>
+      <h3 style="margin:.2rem 0 .4rem" id="t-h-smtp">Respaldo por SMTP</h3>
+      <p class="mini" id="t-smtp-intro">Alternativa clásica: correo de envío y una contraseña de aplicación de Google (se crea en myaccount.google.com/apppasswords). Queda guardada solo en tu base de datos. Una vez guardado, los campos quedan bloqueados: para cambiarlos usa Editar, con doble confirmación. En este servidor el SMTP está bloqueado, así que este respaldo solo sirve si el servidor se mueve a un plan sin bloqueo.</p>
       <div class="row cols2">
-        <label>Correo de envío<input id="s-user" type="email" placeholder="ezequiel@movilizar.me"></label>
-        <label>Contraseña de aplicación<input id="s-pass" type="password" placeholder="••••••••••••••••"></label>
+        <label><span id="s-lbl-1">Correo de envío</span><input id="s-user" type="email" placeholder="ezequiel@movilizar.me"></label>
+        <label><span id="s-lbl-2">Contraseña de aplicación</span><input id="s-pass" type="password" placeholder="••••••••••••••••"></label>
       </div>
       <div class="btnrow">
         <button class="btn" id="save-smtp">Guardar correo</button>
@@ -138,11 +142,11 @@
     </div>
 
     <div class="card">
-      <h2>Interpretación por IA (Azure)</h2>
-      <p class="mini">La consola usa Azure Speech Translation para interpretar sin intérprete humano. Guarda la región y la clave de tu recurso de Azure AI Speech. La clave queda solo en tu base de datos: el servidor entrega a la consola un token temporal, nunca la clave. Una vez guardado, los campos quedan bloqueados: para cambiarlos usa Editar, con doble confirmación.</p>
+      <h2 id="t-h-azure">Interpretación por IA (Azure)</h2>
+      <p class="mini" id="t-azure-intro">La consola usa Azure Speech Translation para interpretar sin intérprete humano. Guarda la región y la clave de tu recurso de Azure AI Speech. La clave queda solo en tu base de datos: el servidor entrega a la consola un token temporal, nunca la clave. Una vez guardado, los campos quedan bloqueados: para cambiarlos usa Editar, con doble confirmación.</p>
       <div class="row cols2">
-        <label>Región de Azure<input id="a-region" type="text" placeholder="eastus"></label>
-        <label>Clave de Azure<input id="a-key" type="password" placeholder="••••••••••••••••"></label>
+        <label><span id="a-lbl-1">Región de Azure</span><input id="a-region" type="text" placeholder="eastus"></label>
+        <label><span id="a-lbl-2">Clave de Azure</span><input id="a-key" type="password" placeholder="••••••••••••••••"></label>
       </div>
       <div class="btnrow">
         <button class="btn" id="save-azure">Guardar datos de Azure</button>
@@ -159,16 +163,157 @@
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
+
+  // Idioma del panel: elección guardada (misma clave que el sitio),
+  // luego el idioma del dispositivo; español por defecto.
+  var STR = {
+    es: {
+      docTitle: 'Panel del intérprete · MovilizarMe', locale: 'es',
+      statics: {
+        't-kicker': 'MovilizarMe · Interpretación en vivo', 't-h1': 'Panel de administración',
+        'auth-title': 'Entrar', 't-pass-lbl': 'Contraseña del panel', 't-pass2-lbl': 'Repite la contraseña', 'auth-btn': 'Entrar',
+        't-stat-1': 'Iglesias registradas', 't-stat-2': 'Salas activas ahora', 't-stat-3': 'Minutos de oyentes (mes)', 't-stat-4': 'Minutos totales (mes)',
+        't-plan-note': 'Plan gratuito de LiveKit: 5,000 minutos de participante al mes entre todas las iglesias.',
+        't-h-churches': 'Iglesias y ministerios', 'th-1': 'Iglesia', 'th-2': 'Clave', 'th-3': 'Estatus', 'th-4': 'Uso este mes', 'th-5': 'Acciones',
+        't-usage-note': 'El contador suma los minutos de cada participante conectado (así cobra LiveKit). "Oyentes" es el desglose de quienes solo escuchan.',
+        't-h-rooms': 'Salas activas', 't-h-add': 'Agregar iglesia',
+        'f-lbl-1': 'Nombre de la iglesia *', 'f-lbl-2': 'Persona de contacto', 'f-lbl-3': 'Correo', 'f-lbl-4': 'Estatus',
+        'fo-trial': 'Prueba (trial)', 'fo-active': 'Activa', 'fo-suspended': 'Suspendida',
+        'f-lbl-5': 'Fin de la prueba', 'f-lbl-6': 'Notas', 'create': 'Crear y generar clave',
+        't-h-mail': 'Correo de bienvenida',
+        't-gmail-intro': 'El panel envía la clave de cada iglesia por correo. La vía que funciona en este servidor es tu cuenta de Google conectada (Gmail por HTTPS), porque el plan gratuito del servidor bloquea el correo SMTP tradicional.',
+        'gmail-connect': 'Conectar mi cuenta de Google', 'gmail-disconnect': 'Desconectar',
+        't-h-smtp': 'Respaldo por SMTP',
+        't-smtp-intro': 'Alternativa clásica: correo de envío y una contraseña de aplicación de Google (se crea en myaccount.google.com/apppasswords). Queda guardada solo en tu base de datos. Una vez guardado, los campos quedan bloqueados: para cambiarlos usa Editar, con doble confirmación. En este servidor el SMTP está bloqueado, así que este respaldo solo sirve si el servidor se mueve a un plan sin bloqueo.',
+        's-lbl-1': 'Correo de envío', 's-lbl-2': 'Contraseña de aplicación',
+        'save-smtp': 'Guardar correo', 'edit-smtp': 'Editar', 'cancel-smtp': 'Cancelar',
+        't-h-azure': 'Interpretación por IA (Azure)',
+        't-azure-intro': 'La consola usa Azure Speech Translation para interpretar sin intérprete humano. Guarda la región y la clave de tu recurso de Azure AI Speech. La clave queda solo en tu base de datos: el servidor entrega a la consola un token temporal, nunca la clave. Una vez guardado, los campos quedan bloqueados: para cambiarlos usa Editar, con doble confirmación.',
+        'a-lbl-1': 'Región de Azure', 'a-lbl-2': 'Clave de Azure',
+        'save-azure': 'Guardar datos de Azure', 'edit-azure': 'Editar', 'cancel-azure': 'Cancelar',
+        'logout': 'Cerrar sesión'
+      },
+      statusNames: { trial: 'Prueba', active: 'Activa', suspended: 'Suspendida' },
+      trialEnd: 'Fin de prueba', roomsMonth: ' salas este mes', listenerMonth: ' min oyentes este mes', totalSince: ' min en total desde el inicio',
+      btnCopy: 'Copiar', btnWelcome: 'Enviar bienvenida', btnRegen: 'Nueva clave', btnEdit: 'Editar', btnSave: 'Guardar cambios', btnCancel: 'Cancelar',
+      lblName: 'Nombre de la iglesia', lblContact: 'Persona de contacto', lblEmail: 'Correo', lblNotes: 'Notas',
+      since: ' · desde ', noRooms: 'Ninguna sala activa.',
+      keyCopiedPre: 'Clave de ', keyCopiedSuf: ' copiada.',
+      sendingMailPre: 'Enviando correo a ', mailSentPre: 'Correo de bienvenida enviado a ', mailSentSuf: '.',
+      confirmRegenPre: '¿Generar una clave nueva para ', confirmRegenSuf: '? La anterior deja de funcionar.',
+      newKeyDone: 'Clave nueva generada.', nameMissing: 'Falta el nombre de la iglesia.',
+      updatedPre: 'Datos de ', updatedSuf: ' actualizados.',
+      nameMissingShort: 'Falta el nombre.',
+      createdPre: 'Iglesia creada. Su clave: ', createdSuf: ' — ahora envíale el correo de bienvenida desde su fila.',
+      savedMark: '•••••••• (guardada)', notSaved: 'Sin guardar', onlyIfChange: 'Escribe solo si quieres cambiarla',
+      saving: 'Guardando…', notSavedPre: 'No se guardó: ',
+      smtpNone: 'Todavía no hay correo de envío guardado.',
+      smtpOkPre: 'Guardado y verificado: ', smtpOkSuf: ' · contraseña de aplicación guardada.',
+      smtpNoPassPre: 'Guardado: ', smtpNoPassSuf: ' · FALTA la contraseña de aplicación. Usa Editar para agregarla.',
+      smtpEditConfirm: '¿Editar el correo de envío? Un cambio incorrecto detiene los correos de bienvenida.',
+      confirm2: 'Segunda confirmación: ¿continuar con la edición?',
+      smtpEditing: 'Editando. Si dejas la contraseña vacía, se conserva la guardada. Al terminar, pulsa Guardar correo.',
+      azureNone: 'Todavía no hay datos de Azure guardados. Sin ellos, el modo de IA de la consola no funciona.',
+      azureOkPre: 'Guardado y verificado: región ', azureOkSuf: ' · clave de Azure guardada.',
+      azureNoRegion: 'Falta la región de Azure. Usa Editar para agregarla.',
+      azureNoKeyPre: 'Guardada la región ', azureNoKeySuf: ' · FALTA la clave de Azure. Usa Editar para agregarla.',
+      azureEditConfirm: '¿Editar los datos de Azure? Un cambio incorrecto detiene la interpretación por IA.',
+      azureEditing: 'Editando. Si dejas la clave vacía, se conserva la guardada. Al terminar, pulsa Guardar datos de Azure.',
+      gmailMissing: 'Faltan las credenciales de Google en el servidor. Chipitín las está configurando; vuelve en unos minutos.',
+      gmailOkPre: 'Cuenta conectada: ', gmailOkSuf: '. Los correos de bienvenida salen desde tu Gmail.',
+      gmailNotConn: 'Tu cuenta de Google aún no está conectada. Sin conexión no salen los correos de bienvenida.',
+      gmailDiscConfirm: '¿Desconectar tu cuenta de Google? Los correos de bienvenida dejarán de enviarse.',
+      gmailErrRetry: 'Google no completó la conexión. Inténtalo de nuevo.',
+      gmailErrChip: 'Faltan las credenciales de Google en el servidor. Avísale a Chipitín.',
+      setupTitle: 'Crea tu contraseña de administrador',
+      setupHelp: 'Es el primer acceso. Esta contraseña protege todo el panel; guárdala en tu gestor de contraseñas.',
+      setupBtn: 'Crear contraseña y entrar',
+      passMismatch: 'Las contraseñas no coinciden.'
+    },
+    en: {
+      docTitle: 'Interpreter panel · MovilizarMe', locale: 'en-US',
+      statics: {
+        't-kicker': 'MovilizarMe · Live interpretation', 't-h1': 'Admin panel',
+        'auth-title': 'Enter', 't-pass-lbl': 'Panel password', 't-pass2-lbl': 'Repeat the password', 'auth-btn': 'Enter',
+        't-stat-1': 'Registered churches', 't-stat-2': 'Rooms active now', 't-stat-3': 'Listener minutes (month)', 't-stat-4': 'Total minutes (month)',
+        't-plan-note': 'LiveKit free plan: 5,000 participant minutes per month across all churches.',
+        't-h-churches': 'Churches and ministries', 'th-1': 'Church', 'th-2': 'Key', 'th-3': 'Status', 'th-4': 'Usage this month', 'th-5': 'Actions',
+        't-usage-note': 'The counter adds up the minutes of every connected participant (that is how LiveKit bills). "Listeners" breaks out those who only listen.',
+        't-h-rooms': 'Active rooms', 't-h-add': 'Add a church',
+        'f-lbl-1': 'Church name *', 'f-lbl-2': 'Contact person', 'f-lbl-3': 'Email', 'f-lbl-4': 'Status',
+        'fo-trial': 'Trial', 'fo-active': 'Active', 'fo-suspended': 'Suspended',
+        'f-lbl-5': 'Trial end', 'f-lbl-6': 'Notes', 'create': 'Create and generate key',
+        't-h-mail': 'Welcome email',
+        't-gmail-intro': 'The panel emails each church its key. The route that works on this server is your connected Google account (Gmail over HTTPS), because the server free plan blocks traditional SMTP mail.',
+        'gmail-connect': 'Connect my Google account', 'gmail-disconnect': 'Disconnect',
+        't-h-smtp': 'SMTP backup',
+        't-smtp-intro': 'Classic alternative: a sending email and a Google app password (created at myaccount.google.com/apppasswords). It is stored only in your database. Once saved, the fields lock: to change them use Edit, with double confirmation. On this server SMTP is blocked, so this backup only helps if the server moves to a plan without the block.',
+        's-lbl-1': 'Sending email', 's-lbl-2': 'App password',
+        'save-smtp': 'Save email', 'edit-smtp': 'Edit', 'cancel-smtp': 'Cancel',
+        't-h-azure': 'AI interpretation (Azure)',
+        't-azure-intro': 'The console uses Azure Speech Translation to interpret without a human interpreter. Save the region and key of your Azure AI Speech resource. The key stays only in your database: the server gives the console a temporary token, never the key. Once saved, the fields lock: to change them use Edit, with double confirmation.',
+        'a-lbl-1': 'Azure region', 'a-lbl-2': 'Azure key',
+        'save-azure': 'Save Azure details', 'edit-azure': 'Edit', 'cancel-azure': 'Cancel',
+        'logout': 'Log out'
+      },
+      statusNames: { trial: 'Trial', active: 'Active', suspended: 'Suspended' },
+      trialEnd: 'Trial end', roomsMonth: ' rooms this month', listenerMonth: ' listener min this month', totalSince: ' total min since the beginning',
+      btnCopy: 'Copy', btnWelcome: 'Send welcome', btnRegen: 'New key', btnEdit: 'Edit', btnSave: 'Save changes', btnCancel: 'Cancel',
+      lblName: 'Church name', lblContact: 'Contact person', lblEmail: 'Email', lblNotes: 'Notes',
+      since: ' · since ', noRooms: 'No active rooms.',
+      keyCopiedPre: 'Key for ', keyCopiedSuf: ' copied.',
+      sendingMailPre: 'Sending email to ', mailSentPre: 'Welcome email sent to ', mailSentSuf: '.',
+      confirmRegenPre: 'Generate a new key for ', confirmRegenSuf: '? The old one stops working.',
+      newKeyDone: 'New key generated.', nameMissing: 'The church name is missing.',
+      updatedPre: '', updatedSuf: ' details updated.',
+      nameMissingShort: 'The name is missing.',
+      createdPre: 'Church created. Its key: ', createdSuf: ' — now send it the welcome email from its row.',
+      savedMark: '•••••••• (saved)', notSaved: 'Not saved', onlyIfChange: 'Type only if you want to change it',
+      saving: 'Saving…', notSavedPre: 'Not saved: ',
+      smtpNone: 'No sending email saved yet.',
+      smtpOkPre: 'Saved and verified: ', smtpOkSuf: ' · app password saved.',
+      smtpNoPassPre: 'Saved: ', smtpNoPassSuf: ' · the app password is MISSING. Use Edit to add it.',
+      smtpEditConfirm: 'Edit the sending email? A wrong change stops the welcome emails.',
+      confirm2: 'Second confirmation: continue editing?',
+      smtpEditing: 'Editing. If you leave the password empty, the saved one is kept. When done, press Save email.',
+      azureNone: 'No Azure details saved yet. Without them, the console AI mode does not work.',
+      azureOkPre: 'Saved and verified: region ', azureOkSuf: ' · Azure key saved.',
+      azureNoRegion: 'The Azure region is missing. Use Edit to add it.',
+      azureNoKeyPre: 'Region ', azureNoKeySuf: ' saved · the Azure key is MISSING. Use Edit to add it.',
+      azureEditConfirm: 'Edit the Azure details? A wrong change stops AI interpretation.',
+      azureEditing: 'Editing. If you leave the key empty, the saved one is kept. When done, press Save Azure details.',
+      gmailMissing: 'The Google credentials are missing on the server. Chipitín is setting them up; come back in a few minutes.',
+      gmailOkPre: 'Account connected: ', gmailOkSuf: '. Welcome emails go out from your Gmail.',
+      gmailNotConn: 'Your Google account is not connected yet. Without a connection, welcome emails cannot be sent.',
+      gmailDiscConfirm: 'Disconnect your Google account? Welcome emails will stop being sent.',
+      gmailErrRetry: 'Google did not complete the connection. Try again.',
+      gmailErrChip: 'The Google credentials are missing on the server. Let Chipitín know.',
+      setupTitle: 'Create your admin password',
+      setupHelp: 'This is the first sign-in. This password protects the whole panel; save it in your password manager.',
+      setupBtn: 'Create password and enter',
+      passMismatch: 'The passwords do not match.'
+    }
+  };
+  var LANG = (function () {
+    try {
+      var saved = localStorage.getItem('mm-lang');
+      if (saved === 'es' || saved === 'en') return saved;
+    } catch (e) {}
+    return (navigator.language || 'es').toLowerCase().indexOf('en') === 0 ? 'en' : 'es';
+  })();
+  var L = STR[LANG];
+  var lastSettings = null;
+  var setupMode = false;
   var churches = [];
   var editingId = null;
   function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
   function api(path, opts) {
-    return fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts || {}))
+    return fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json', 'X-MM-Lang': LANG } }, opts || {}))
       .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.error || 'Error'); return d; }); });
   }
   function msg(t, err) { var m = $('msg'); m.textContent = t || ''; m.className = 'msg' + (err ? ' err' : ''); }
   function fmtDate(d) { if (!d) return ''; return String(d).slice(0, 10); }
-  function badge(st) { return '<span class="badge b-' + st + '">' + ({ trial: 'Prueba', active: 'Activa', suspended: 'Suspendida' })[st] + '</span>'; }
+  function badge(st) { return '<span class="badge b-' + st + '">' + L.statusNames[st] + '</span>'; }
 
   function render() {
     $('st-churches').textContent = churches.length;
@@ -180,30 +325,30 @@
       var u = c.usage || {};
       return '<tr>' +
         '<td><strong>' + c.name + '</strong><br><span class="mini">' + (c.contact_name || '') + (c.email ? ' · ' + c.email : '') + '</span></td>' +
-        '<td><span class="key">' + c.key + '</span><button class="btn secondary small" data-act="copy" data-id="' + c.id + '">Copiar</button></td>' +
+        '<td><span class="key">' + c.key + '</span><button class="btn secondary small" data-act="copy" data-id="' + c.id + '">' + L.btnCopy + '</button></td>' +
         '<td>' + badge(c.status) +
           '<select data-act="status" data-id="' + c.id + '">' +
-            ['trial', 'active', 'suspended'].map(function (s) { return '<option value="' + s + '"' + (c.status === s ? ' selected' : '') + '>' + ({ trial: 'Prueba', active: 'Activa', suspended: 'Suspendida' })[s] + '</option>'; }).join('') +
+            ['trial', 'active', 'suspended'].map(function (s) { return '<option value="' + s + '"' + (c.status === s ? ' selected' : '') + '>' + L.statusNames[s] + '</option>'; }).join('') +
           '</select>' +
-          (c.status === 'trial' ? '<span class="mini trial-lbl">Fin de prueba</span><input type="date" data-act="trial" data-id="' + c.id + '" value="' + fmtDate(c.trial_ends) + '">' : '') +
+          (c.status === 'trial' ? '<span class="mini trial-lbl">' + L.trialEnd + '</span><input type="date" data-act="trial" data-id="' + c.id + '" value="' + fmtDate(c.trial_ends) + '">' : '') +
         '</td>' +
-        '<td>' + (u.rooms_month || 0) + ' salas este mes<br>' + Math.round(u.listener_month || 0) + ' min oyentes este mes<br><span class="mini">' + Math.round(u.minutes_total || 0) + ' min en total desde el inicio</span></td>' +
+        '<td>' + (u.rooms_month || 0) + L.roomsMonth + '<br>' + Math.round(u.listener_month || 0) + L.listenerMonth + '<br><span class="mini">' + Math.round(u.minutes_total || 0) + L.totalSince + '</span></td>' +
         '<td><div class="btnrow col">' +
-          '<button class="btn small" data-act="welcome" data-id="' + c.id + '">Enviar bienvenida</button>' +
-          '<button class="btn secondary small" data-act="regen" data-id="' + c.id + '">Nueva clave</button>' +
-          '<button class="btn secondary small" data-act="edit" data-id="' + c.id + '">Editar</button>' +
+          '<button class="btn small" data-act="welcome" data-id="' + c.id + '">' + L.btnWelcome + '</button>' +
+          '<button class="btn secondary small" data-act="regen" data-id="' + c.id + '">' + L.btnRegen + '</button>' +
+          '<button class="btn secondary small" data-act="edit" data-id="' + c.id + '">' + L.btnEdit + '</button>' +
         '</div></td></tr>' +
         (String(editingId) === String(c.id) ?
           '<tr class="editrow"><td colspan="5">' +
             '<div class="row cols3">' +
-              '<div><label>Nombre de la iglesia</label><input id="e-name" type="text" value="' + esc(c.name) + '"></div>' +
-              '<div><label>Persona de contacto</label><input id="e-contact" type="text" value="' + esc(c.contact_name || '') + '"></div>' +
-              '<div><label>Correo</label><input id="e-email" type="email" value="' + esc(c.email || '') + '"></div>' +
+              '<div><label>' + L.lblName + '</label><input id="e-name" type="text" value="' + esc(c.name) + '"></div>' +
+              '<div><label>' + L.lblContact + '</label><input id="e-contact" type="text" value="' + esc(c.contact_name || '') + '"></div>' +
+              '<div><label>' + L.lblEmail + '</label><input id="e-email" type="email" value="' + esc(c.email || '') + '"></div>' +
             '</div>' +
-            '<div style="margin-top:.6rem"><label>Notas</label><input id="e-notes" type="text" value="' + esc(c.notes || '') + '"></div>' +
+            '<div style="margin-top:.6rem"><label>' + L.lblNotes + '</label><input id="e-notes" type="text" value="' + esc(c.notes || '') + '"></div>' +
             '<div class="btnrow" style="margin-top:.7rem">' +
-              '<button class="btn small" data-act="save-edit" data-id="' + c.id + '">Guardar cambios</button>' +
-              '<button class="btn secondary small" data-act="cancel-edit" data-id="' + c.id + '">Cancelar</button>' +
+              '<button class="btn small" data-act="save-edit" data-id="' + c.id + '">' + L.btnSave + '</button>' +
+              '<button class="btn secondary small" data-act="cancel-edit" data-id="' + c.id + '">' + L.btnCancel + '</button>' +
             '</div>' +
           '</td></tr>' : '');
     }).join('');
@@ -214,8 +359,8 @@
       churches = d.churches;
       $('st-rooms').textContent = d.activeRooms.length;
       $('rooms').innerHTML = d.activeRooms.length
-        ? d.activeRooms.map(function (r) { return '<li><strong>' + r.code + '</strong> · ' + (r.church_name || '') + ' · desde ' + new Date(r.created_at).toLocaleString('es'); }).join('')
-        : '<li class="mini">Ninguna sala activa.</li>';
+        ? d.activeRooms.map(function (r) { return '<li><strong>' + r.code + '</strong> · ' + (r.church_name || '') + L.since + new Date(r.created_at).toLocaleString(L.locale); }).join('')
+        : '<li class="mini">' + L.noRooms + '</li>';
       render();
     });
   }
@@ -224,15 +369,15 @@
     var b = e.target.closest('button'); if (!b) return;
     var id = b.getAttribute('data-id'), act = b.getAttribute('data-act');
     var c = churches.find(function (x) { return String(x.id) === String(id); });
-    if (act === 'copy') { navigator.clipboard.writeText(c.key.replace('-', '')); msg('Clave de ' + c.name + ' copiada.'); }
-    if (act === 'welcome') { msg('Enviando correo a ' + c.name + '…'); api('/api/admin/churches/' + id + '/welcome', { method: 'POST', body: '{}' }).then(function () { msg('Correo de bienvenida enviado a ' + c.email + '.'); }).catch(function (err) { msg(err.message, true); }); }
-    if (act === 'regen') { if (confirm('¿Generar una clave nueva para ' + c.name + '? La anterior deja de funcionar.')) { api('/api/admin/churches/' + id, { method: 'PATCH', body: JSON.stringify({ regenerateKey: true }) }).then(load).then(function () { msg('Clave nueva generada.'); }); } }
+    if (act === 'copy') { navigator.clipboard.writeText(c.key.replace('-', '')); msg(L.keyCopiedPre + c.name + L.keyCopiedSuf); }
+    if (act === 'welcome') { msg(L.sendingMailPre + c.name + '…'); api('/api/admin/churches/' + id + '/welcome', { method: 'POST', body: '{}' }).then(function () { msg(L.mailSentPre + c.email + L.mailSentSuf); }).catch(function (err) { msg(err.message, true); }); }
+    if (act === 'regen') { if (confirm(L.confirmRegenPre + c.name + L.confirmRegenSuf)) { api('/api/admin/churches/' + id, { method: 'PATCH', body: JSON.stringify({ regenerateKey: true }) }).then(load).then(function () { msg(L.newKeyDone); }); } }
     if (act === 'edit') { editingId = id; render(); }
     if (act === 'cancel-edit') { editingId = null; render(); }
     if (act === 'save-edit') {
       var data = { name: $('e-name').value.trim(), contactName: $('e-contact').value.trim(), email: $('e-email').value.trim(), notes: $('e-notes').value.trim() };
-      if (!data.name) { msg('Falta el nombre de la iglesia.', true); return; }
-      api('/api/admin/churches/' + id, { method: 'PATCH', body: JSON.stringify(data) }).then(function () { editingId = null; return load(); }).then(function () { msg('Datos de ' + data.name + ' actualizados.'); }).catch(function (err) { msg(err.message, true); });
+      if (!data.name) { msg(L.nameMissing, true); return; }
+      api('/api/admin/churches/' + id, { method: 'PATCH', body: JSON.stringify(data) }).then(function () { editingId = null; return load(); }).then(function () { msg(L.updatedPre + data.name + L.updatedSuf); }).catch(function (err) { msg(err.message, true); });
     }
   });
   $('tbody').addEventListener('change', function (e) {
@@ -243,9 +388,9 @@
 
   $('create').addEventListener('click', function () {
     var data = { name: $('f-name').value.trim(), contactName: $('f-contact').value.trim(), email: $('f-email').value.trim(), status: $('f-status').value, trialEnds: $('f-trial').value || null, notes: $('f-notes').value.trim() };
-    if (!data.name) { $('create-msg').textContent = 'Falta el nombre.'; return; }
+    if (!data.name) { $('create-msg').textContent = L.nameMissingShort; return; }
     api('/api/admin/churches', { method: 'POST', body: JSON.stringify(data) }).then(function (d) {
-      $('create-msg').textContent = 'Iglesia creada. Su clave: ' + d.church.key + ' — ahora envíale el correo de bienvenida desde su fila.';
+      $('create-msg').textContent = L.createdPre + d.church.key + L.createdSuf;
       $('f-name').value = $('f-contact').value = $('f-email').value = $('f-notes').value = '';
       load();
     }).catch(function (err) { $('create-msg').textContent = err.message; });
@@ -259,30 +404,30 @@
     $('save-smtp').hidden = lock;
     $('cancel-smtp').hidden = lock;
     $('edit-smtp').hidden = !lock;
-    if (lock) { $('s-pass').value = ''; $('s-pass').placeholder = smtpSaved && smtpSaved.smtpConfigured ? '•••••••• (guardada)' : 'Sin guardar'; }
-    else { $('s-pass').placeholder = 'Escribe solo si quieres cambiarla'; }
+    if (lock) { $('s-pass').value = ''; $('s-pass').placeholder = smtpSaved && smtpSaved.smtpConfigured ? L.savedMark : L.notSaved; }
+    else { $('s-pass').placeholder = L.onlyIfChange; }
   }
   function showSmtp(s) {
     smtpSaved = s;
     $('s-user').value = s.smtpUser || '';
-    if (!s.smtpUser) { lockSmtp(false); smtpState('note', 'Todavía no hay correo de envío guardado.'); return; }
+    if (!s.smtpUser) { lockSmtp(false); smtpState('note', L.smtpNone); return; }
     lockSmtp(true);
-    if (s.smtpConfigured) smtpState('ok', 'Guardado y verificado: ' + s.smtpUser + ' · contraseña de aplicación guardada.');
-    else smtpState('err', 'Guardado: ' + s.smtpUser + ' · FALTA la contraseña de aplicación. Usa Editar para agregarla.');
+    if (s.smtpConfigured) smtpState('ok', L.smtpOkPre + s.smtpUser + L.smtpOkSuf);
+    else smtpState('err', L.smtpNoPassPre + s.smtpUser + L.smtpNoPassSuf);
   }
   $('edit-smtp').addEventListener('click', function () {
-    if (!confirm('¿Editar el correo de envío? Un cambio incorrecto detiene los correos de bienvenida.')) return;
-    if (!confirm('Segunda confirmación: ¿continuar con la edición?')) return;
+    if (!confirm(L.smtpEditConfirm)) return;
+    if (!confirm(L.confirm2)) return;
     lockSmtp(false);
-    smtpState('note', 'Editando. Si dejas la contraseña vacía, se conserva la guardada. Al terminar, pulsa Guardar correo.');
+    smtpState('note', L.smtpEditing);
   });
   $('cancel-smtp').addEventListener('click', function () { if (smtpSaved) showSmtp(smtpSaved); });
   $('save-smtp').addEventListener('click', function () {
-    smtpState('note', 'Guardando…');
+    smtpState('note', L.saving);
     api('/api/admin/settings', { method: 'POST', body: JSON.stringify({ smtpUser: $('s-user').value.trim(), smtpPass: $('s-pass').value || undefined }) })
       .then(function () { return api('/api/admin/settings'); })
       .then(showSmtp)
-      .catch(function (err) { smtpState('err', 'No se guardó: ' + err.message); });
+      .catch(function (err) { smtpState('err', L.notSavedPre + err.message); });
   });
   var azureSaved = null;
   function azureState(kind, text) { var el = $('azure-state'); el.className = 'state ' + kind; el.textContent = text; }
@@ -292,69 +437,75 @@
     $('save-azure').hidden = lock;
     $('cancel-azure').hidden = lock;
     $('edit-azure').hidden = !lock;
-    if (lock) { $('a-key').value = ''; $('a-key').placeholder = azureSaved && azureSaved.azureConfigured ? '•••••••• (guardada)' : 'Sin guardar'; }
-    else { $('a-key').placeholder = 'Escribe solo si quieres cambiarla'; }
+    if (lock) { $('a-key').value = ''; $('a-key').placeholder = azureSaved && azureSaved.azureConfigured ? L.savedMark : L.notSaved; }
+    else { $('a-key').placeholder = L.onlyIfChange; }
   }
   function showAzure(s) {
     azureSaved = s;
     $('a-region').value = s.azureRegion || '';
-    if (!s.azureRegion && !s.azureConfigured) { lockAzure(false); azureState('note', 'Todavía no hay datos de Azure guardados. Sin ellos, el modo de IA de la consola no funciona.'); return; }
+    if (!s.azureRegion && !s.azureConfigured) { lockAzure(false); azureState('note', L.azureNone); return; }
     lockAzure(true);
-    if (s.azureConfigured && s.azureRegion) azureState('ok', 'Guardado y verificado: región ' + s.azureRegion + ' · clave de Azure guardada.');
-    else if (!s.azureRegion) azureState('err', 'Falta la región de Azure. Usa Editar para agregarla.');
-    else azureState('err', 'Guardada la región ' + s.azureRegion + ' · FALTA la clave de Azure. Usa Editar para agregarla.');
+    if (s.azureConfigured && s.azureRegion) azureState('ok', L.azureOkPre + s.azureRegion + L.azureOkSuf);
+    else if (!s.azureRegion) azureState('err', L.azureNoRegion);
+    else azureState('err', L.azureNoKeyPre + s.azureRegion + L.azureNoKeySuf);
   }
   $('edit-azure').addEventListener('click', function () {
-    if (!confirm('¿Editar los datos de Azure? Un cambio incorrecto detiene la interpretación por IA.')) return;
-    if (!confirm('Segunda confirmación: ¿continuar con la edición?')) return;
+    if (!confirm(L.azureEditConfirm)) return;
+    if (!confirm(L.confirm2)) return;
     lockAzure(false);
-    azureState('note', 'Editando. Si dejas la clave vacía, se conserva la guardada. Al terminar, pulsa Guardar datos de Azure.');
+    azureState('note', L.azureEditing);
   });
   $('cancel-azure').addEventListener('click', function () { if (azureSaved) showAzure(azureSaved); });
   $('save-azure').addEventListener('click', function () {
-    azureState('note', 'Guardando…');
+    azureState('note', L.saving);
     api('/api/admin/settings', { method: 'POST', body: JSON.stringify({ azureRegion: $('a-region').value.trim(), azureKey: $('a-key').value.trim() || undefined }) })
       .then(function () { return api('/api/admin/settings'); })
       .then(showAzure)
-      .catch(function (err) { azureState('err', 'No se guardó: ' + err.message); });
+      .catch(function (err) { azureState('err', L.notSavedPre + err.message); });
   });
   $('logout').addEventListener('click', function () { api('/api/admin/logout', { method: 'POST', body: '{}' }).then(function () { location.reload(); }); });
 
   function gmailState(kind, text) { var el = $('gmail-state'); el.className = 'state ' + kind; el.textContent = text; }
   function showGmail(s) {
     if (!s.googleConfigured) {
-      gmailState('err', 'Faltan las credenciales de Google en el servidor. Chipitín las está configurando; vuelve en unos minutos.');
+      gmailState('err', L.gmailMissing);
       $('gmail-connect').hidden = true; $('gmail-disconnect').hidden = true; return;
     }
     if (s.gmailConnected) {
-      gmailState('ok', 'Cuenta conectada: ' + (s.gmailUser || '') + '. Los correos de bienvenida salen desde tu Gmail.');
+      gmailState('ok', L.gmailOkPre + (s.gmailUser || '') + L.gmailOkSuf);
       $('gmail-connect').hidden = true; $('gmail-disconnect').hidden = false;
     } else {
-      gmailState('note', 'Tu cuenta de Google aún no está conectada. Sin conexión no salen los correos de bienvenida.');
+      gmailState('note', L.gmailNotConn);
       $('gmail-connect').hidden = false; $('gmail-disconnect').hidden = true;
     }
   }
   $('gmail-disconnect').addEventListener('click', function () {
-    if (!confirm('¿Desconectar tu cuenta de Google? Los correos de bienvenida dejarán de enviarse.')) return;
+    if (!confirm(L.gmailDiscConfirm)) return;
     api('/api/admin/google/disconnect', { method: 'POST', body: '{}' })
       .then(function () { return api('/api/admin/settings'); })
       .then(function (s) { showGmail(s); showSmtp(s); });
   });
 
+  function applyAuthTexts() {
+    if (setupMode) {
+      $('auth-title').textContent = L.setupTitle;
+      $('auth-help').textContent = L.setupHelp;
+      $('auth-btn').textContent = L.setupBtn;
+    }
+  }
   function start() {
     api('/api/admin/state').then(function (st) {
       if (!st.authed) {
         $('auth').hidden = false;
         if (st.needsSetup) {
-          $('auth-title').textContent = 'Crea tu contraseña de administrador';
-          $('auth-help').textContent = 'Es el primer acceso. Esta contraseña protege todo el panel; guárdala en tu gestor de contraseñas.';
+          setupMode = true;
           $('pass2-label').hidden = false;
-          $('auth-btn').textContent = 'Crear contraseña y entrar';
+          applyAuthTexts();
         }
         $('auth-btn').onclick = function () {
           var p = $('pass').value;
           if (st.needsSetup) {
-            if (p !== $('pass2').value) { $('auth-msg').textContent = 'Las contraseñas no coinciden.'; return; }
+            if (p !== $('pass2').value) { $('auth-msg').textContent = L.passMismatch; return; }
             api('/api/admin/setup', { method: 'POST', body: JSON.stringify({ password: p }) }).then(function () { location.reload(); }).catch(function (e) { $('auth-msg').textContent = e.message; });
           } else {
             api('/api/admin/login', { method: 'POST', body: JSON.stringify({ password: p }) }).then(function () { location.reload(); }).catch(function (e) { $('auth-msg').textContent = e.message; });
@@ -363,15 +514,36 @@
       } else {
         $('dash').hidden = false;
         api('/api/admin/settings').then(function (s) {
+          lastSettings = s;
           showSmtp(s); showGmail(s); showAzure(s);
           var g = new URLSearchParams(location.search).get('gmail');
-          if (g === 'error' || g === 'sin-token') gmailState('err', 'Google no completó la conexión. Inténtalo de nuevo.');
-          if (g === 'sin-credenciales') gmailState('err', 'Faltan las credenciales de Google en el servidor. Avísale a Chipitín.');
+          if (g === 'error' || g === 'sin-token') gmailState('err', L.gmailErrRetry);
+          if (g === 'sin-credenciales') gmailState('err', L.gmailErrChip);
         });
         load();
       }
     });
   }
+  function setLang(l) {
+    LANG = l; L = STR[l];
+    try { localStorage.setItem('mm-lang', l); } catch (e) {}
+    document.documentElement.lang = l;
+    document.title = L.docTitle;
+    Object.keys(L.statics).forEach(function (id) {
+      var el = $(id);
+      if (el) el.textContent = L.statics[id];
+    });
+    applyAuthTexts();
+    if (!$('dash').hidden) {
+      render();
+      if (lastSettings) { showSmtp(lastSettings); showGmail(lastSettings); showAzure(lastSettings); }
+    }
+    $('lang-es').className = l === 'es' ? 'on' : '';
+    $('lang-en').className = l === 'en' ? 'on' : '';
+  }
+  $('lang-es').addEventListener('click', function () { setLang('es'); });
+  $('lang-en').addEventListener('click', function () { setLang('en'); });
+  setLang(LANG);
   start();
 })();
 </script>
